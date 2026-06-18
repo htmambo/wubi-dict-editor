@@ -49,44 +49,6 @@ function generatePinyinCode(wordText, charPinyinMap) {
     return codes.join(' ')
 }
 
-/**
- * 将选中词条转换为可写入拼音词库的 Word 列表
- */
-function prepareWordsForPinyinDict(selectedWords, pinyinDict, nextIdStart) {
-    const charPinyinMap = buildCharPinyinMap(pinyinDict)
-    const toAdd = []
-    const skipped = []
-    const failed = []
-    let nextId = nextIdStart
-
-    selectedWords.forEach(sourceWord => {
-        if (pinyinDictHasWord(pinyinDict, sourceWord.word)) {
-            skipped.push(sourceWord.word)
-            return
-        }
-
-        let pinyinCode = findExactCode(pinyinDict, sourceWord.word)
-        if (!pinyinCode) {
-            pinyinCode = generatePinyinCode(sourceWord.word, charPinyinMap)
-        }
-
-        if (!pinyinCode) {
-            failed.push(sourceWord.word)
-            return
-        }
-
-        toAdd.push(new Word(
-            nextId++,
-            pinyinCode,
-            sourceWord.word,
-            sourceWord.priority || '',
-            sourceWord.note || ''
-        ))
-    })
-
-    return { toAdd, skipped, failed, nextId }
-}
-
 async function prepareWordsForPinyinDictAsync(selectedWords, pinyinDict, nextIdStart, onProgress) {
     if (onProgress) {
         onProgress(0, selectedWords.length, '正在分析拼音词库...')
@@ -177,27 +139,7 @@ function findPinyinInsertIndex(words, word) {
     return words.length
 }
 
-/**
- * 按拼音词库规则插入：先按字数，再按编码 a-z
- */
-function addWordsToPinyinDictInOrder(pinyinDict, words, groupIndex = -1) {
-    let targetWords
-    if (pinyinDict.isGroupMode && groupIndex !== -1) {
-        targetWords = pinyinDict.wordsOrigin[groupIndex].dict
-    } else {
-        targetWords = pinyinDict.wordsOrigin
-    }
-    words.forEach(word => {
-        insertWordToPinyinDict(pinyinDict, targetWords, word)
-    })
-    pinyinDict.buildCodeIndex()
-}
-
 module.exports = {
-    prepareWordsForPinyinDict,
     prepareWordsForPinyinDictAsync,
-    pinyinDictHasWord,
-    addWordsToPinyinDictInOrder,
     addWordsToPinyinDictInOrderAsync,
-    comparePinyinWordOrder,
 }

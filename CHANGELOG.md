@@ -1,3 +1,23 @@
+## v1.34 `2026-06-19`
+- 重构：把 `GroupOpMixin.js` 中的拼音相关 5 个方法（`beginPinyinAdd` / `updatePinyinAddProgress` / `finishPinyinAdd` / `addSelectionToPinyinDict` / `applyAddToPinyinDict`）抽到独立 `view/index/mixins/PinyinMixin.js`（92 行）
+- 重构：`GroupOpMixin.js` 删除残留的空 `require('js/Utility')` 占位符；448 → 367 行
+- 文档：PinyinMixin / GroupOpMixin 顶部 JSDoc 标注 mixin 数组顺序约束（`PinyinMixin` 必须排在 `GroupOpMixin` 之后，否则运行时 `this.getSelectedWords is not a function`）
+- 新增：`tests/dictWorkerClient.test.js`（9 用例）：覆盖 dictWorkerClient 公共面 + sync 降级路径 + falsy 输入短路 + 大词库序列化 + threshold 边界
+- TODO（electron-e2e）：真 Worker 分支（postMessage 协议、Transferable 序列化、Worker 文件本身 bug）需 Electron 渲染进程集成测试补齐，本测试集**不**覆盖
+
+## v1.33 `2026-06-19`
+- 优化：删除 `PinyinDictHelper.js` 中无人调用的同步实现，调用方统一走 async 路径（少 59 行重复代码）
+- 优化：`RimeExecResolver.parseWeaselVersion` 对畸形版本号返回 0 而非 `NaN`，避免污染排序；`compareVersionParts` 增加 null/undefined 防御（导出为 public API 后必填）
+- 优化：导出 `parseWeaselVersion` / `compareVersionParts` 便于测试
+- 重构：拆分 `view/index/App.js`（1489 → 365 行）为 `view/index/mixins/{DictLoadMixin, SearchMixin, GroupOpMixin, SyncMixin, computed}`；App.js 只保留 data / mounted / watch 与 mixin 组合
+- 重构：App.js 增加 `document.getElementById('app')` 守卫，仅在生产环境执行 `new Vue(app)`，便于在测试环境 require app 配置
+- 新增：`tests/` 目录使用 `node:test`（Node 24 内置、零依赖）
+  - `tests/dictParseCore.test.js`（10 用例）：parse/serialize round-trip、unicode codepoint、Dict 集成
+  - `tests/RimeExecResolver.test.js`（10 用例）：版本解析、比较、NaN 兜底、null 防御
+  - `tests/TipMixin.test.js`（13 用例）：data/computed/methods 行为 + App.js 结构契约（含 P2 拆分后 mixin 组合断言）
+- 新增：`npm test` 脚本
+- P3 待办：把 `pinyinDict` 相关方法从 `GroupOpMixin` / `SyncMixin` 抽离为独立 `PinyinMixin`（外部 review 建议）
+
 ## v1.32 `2026-06-05`
 - 性能：码表解析/保存改 Worker 异步处理，加载与保存不再阻塞界面
 - 性能：编码索引 + 编码输入 250ms 防抖，查重码查询更快

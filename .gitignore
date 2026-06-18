@@ -24,3 +24,6 @@ pnpm-debug.log*
 *.sw?
 
 /out
+
+# OMC (oh-my-claudecode) runtime working dir — not part of source
+.omc/

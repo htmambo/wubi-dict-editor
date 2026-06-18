@@ -37,10 +37,18 @@ function parseWeaselVersion(folderName) {
     if (!match) {
         return null
     }
-    return match[1].split('.').map(part => parseInt(part, 10))
+    return match[1].split('.').map(part => {
+        const num = parseInt(part, 10)
+        return Number.isNaN(num) ? 0 : num
+    })
 }
 
 function compareVersionParts(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) {
+        if (Array.isArray(a)) return 1
+        if (Array.isArray(b)) return -1
+        return 0
+    }
     const len = Math.max(a.length, b.length)
     for (let i = 0; i < len; i++) {
         const av = a[i] || 0
@@ -160,6 +168,8 @@ function getRimeExecDir(platform, configRimeExecDir = '') {
 module.exports = {
     WEASEL_DEPLOYER,
     WINDOWS_RIME_ROOTS,
+    parseWeaselVersion,
+    compareVersionParts,
     isValidWeaselExecDir,
     normalizeConfiguredExecDir,
     resolveRimeExecDirWin,
