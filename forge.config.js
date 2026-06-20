@@ -26,13 +26,12 @@ module.exports = {
     appBundleId: 'cn.kylebing.wubi-dict-editor',
     appCopyright: 'kylebing@163.com',
     icon: iconBase,
-    asar: true,
-    // Worker 文件必须以原始文件形式打包，不能放进 asar 虚拟文件系统
-    // 否则 new Worker(workerPath) 在渲染进程内无法加载（Web Worker 不支持 asar）
-    asarUnpack: [
-        'js/dictParseWorker.js',
-        'js/yamlSerializeWorker.js',
-    ],
+    asar: {
+        // Worker 文件必须以原始文件形式打包，不能放进 asar 虚拟文件系统
+        // 否则 new Worker(workerPath) 在渲染进程内无法加载（Web Worker 不支持 asar）
+        // packager 使用 minimatch glob；**/* 匹配任意层级
+        unpack: '**/{dictParseWorker,yamlSerializeWorker}.js',
+    },
     overwrite: true,
     extendInfo: {
       CFBundleDisplayName: displayName,
@@ -110,20 +109,12 @@ module.exports = {
         title: displayName,
       },
     },
+    // 注意：Arch 系（manjaro/arch）无 dpkg/fakeroot/rpmbuild，
+    // 因此不在这里列出 maker-deb / maker-rpm。Linux 仅打包 zip。
+    // Arch 用户可直接用 AUR 或运行 unpacked AppImage。
     {
-      name: '@electron-forge/maker-deb',
+      name: '@electron-forge/maker-zip',
       platforms: ['linux'],
-      config: {
-        options: {
-          maintainer: 'kylebing@163.com',
-          homepage: 'https://github.com/KyleBing/wubi-dict-editor',
-        },
-      },
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      platforms: ['linux'],
-      config: {},
     },
   ],
   hooks: {
