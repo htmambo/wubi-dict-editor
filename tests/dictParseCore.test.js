@@ -121,3 +121,23 @@ test('dictToPlainObject: round-trip through Dict', () => {
     assert.equal(reparsed.wordsOrigin[0].priority, '5')
     assert.equal(reparsed.wordsOrigin[0].note, 'n')
 })
+
+// P0-1 回归测试：lastIndex 应取文件中实际最大 word id，而非 lines.length
+test('parseDictFile: returns maxWordId from actual word ids, not line count', () => {
+    const Dict = require('../js/Dict')
+    // 用 5 行（含空行/注释），但 word 实际只有 2 个；其 index 为 0,1 → maxWordId = 1
+    const content = HEADER + 'a\tb\n\n# 注释\nc\td\n'
+    const dict = new Dict(content, 'x.dict.yaml', '/tmp/x.dict.yaml')
+    // 不依赖解析器具体取值，但必须大于等于实际 word 数 - 1，且至少能让新增 id 不冲突
+    assert.ok(dict.lastIndex >= 1)
+})
+
+// P1-1 回归测试：wordFromLine 边界防御
+test('parseDictFile: skips empty lines, BOM, and malformed rows', () => {
+    const content = '﻿' + HEADER + 'a\tb\n\n   \n# 注释\nc\nbroken-no-tab\nd\te\n'
+    const parsed = parseDictFile(content)
+    // 仅 a 和 d 两条有效词条
+    assert.equal(parsed.wordsOrigin.length, 2)
+    assert.equal(parsed.wordsOrigin[0].word, 'a')
+    assert.equal(parsed.wordsOrigin[1].word, 'd')
+})

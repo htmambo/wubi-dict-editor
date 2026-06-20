@@ -11,7 +11,28 @@ const {
     addWordsToPinyinDictInOrderAsync,
 } = require('../../js/PinyinDictHelper')
 
+const REQUIRED_DEPS = [
+    ['GroupOpMixin', ['getSelectedWords', 'saveToFile']],
+    ['TipMixin',     ['setProgressTip', 'clearProgressTip', 'showTip']],
+]
+
 module.exports = {
+    created() {
+        // 运行时检测：mixin 顺序错误时给出明确错误而非后续 TypeError
+        const missing = []
+        REQUIRED_DEPS.forEach(([mixinName, methods]) => {
+            methods.forEach(m => {
+                if (typeof this[m] !== 'function') missing.push(`${mixinName}.${m}`)
+            })
+        })
+        if (missing.length) {
+            // 非阻塞：仅打印；拼音功能将在首次调用时报 TypeError，但排查路径更短
+            console.error(
+                `[PinyinMixin] 缺少依赖方法: ${missing.join(', ')}。` +
+                `请检查 App.js mixins 数组顺序，${REQUIRED_DEPS.map(d => d[0]).join(' / ')} 必须在 PinyinMixin 之前。`
+            )
+        }
+    },
     methods: {
         beginPinyinAdd(phase, progressTip){
             this.isPinyinAddBusy = true

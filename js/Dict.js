@@ -45,7 +45,10 @@ class Dict {
         this.header = parsed.header
         this.indexEndOfHeader = parsed.indexEndOfHeader
         this.isGroupMode = parsed.isGroupMode
-        this.lastIndex = parsed.lastIndex
+        // 优先使用文件中实际最大 word id；缺失时回退到 lines.length
+        this.lastIndex = (typeof parsed.maxWordId === 'number' && parsed.maxWordId >= 0)
+            ? parsed.maxWordId
+            : parsed.lastIndex
         this.lastGroupIndex = parsed.lastGroupIndex
         this.dictSetExceptCharacter = new Set(parsed.dictSetExceptCharacter || [])
 

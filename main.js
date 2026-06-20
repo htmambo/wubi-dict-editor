@@ -22,7 +22,8 @@ const {
 } = require('./js/Global')
 const plist = require("plist")
 const wubiApi = require("./js/wubiApi")
-const { getRimeExecDir: resolveRimeExecDir, WEASEL_DEPLOYER, normalizeConfiguredExecDir } = require('./js/RimeExecResolver')
+const rimeExecResolver = require('./js/RimeExecResolver')
+const { getRimeExecDir, WEASEL_DEPLOYER, normalizeConfiguredExecDir } = rimeExecResolver
 
 let mainWindow // 主窗口
 let fileList = [] // 文件目录列表，用于移动词条
@@ -603,7 +604,7 @@ function createConfigWindow() {
 
     ipcMain.on('ConfigWindow:ResolveRimeExecDir', event => {
         const config = readConfigFile()
-        const resolved = getRimeExecDir(config && config.rimeExecDir)
+        const resolved = getRimeExecDir(os.platform(), config && config.rimeExecDir)
         configWindow.send('ConfigWindow:ResolvedRimeExecDir', {
             configured: (config && config.rimeExecDir) || '',
             resolved: resolved || '',
@@ -891,7 +892,7 @@ function getDictFileList() {
 // 部署 Rime
 function applyRime() {
     const config = readConfigFile()
-    const rimeBinDir = getRimeExecDir(config && config.rimeExecDir)
+    const rimeBinDir = getRimeExecDir(os.platform(), config && config.rimeExecDir)
     if (!rimeBinDir) {
         const message = '未找到 WeaselDeployer.exe，请在设置中指定输入法程序目录'
         console.log(message)
@@ -951,14 +952,5 @@ function getRimeConfigDir() {
 
 function getAppConfigDir() {
     return path.join(os.homedir(), CONFIG_FILE_PATH)
-}
-
-// 返回 Rime 可执行文件夹
-function getRimeExecDir(configRimeExecDir) {
-    const config = readConfigFile()
-    const configuredDir = configRimeExecDir !== undefined
-        ? configRimeExecDir
-        : (config && config.rimeExecDir) || ''
-    return resolveRimeExecDir(os.platform(), configuredDir)
 }
 

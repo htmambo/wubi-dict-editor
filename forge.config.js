@@ -27,6 +27,12 @@ module.exports = {
     appCopyright: 'kylebing@163.com',
     icon: iconBase,
     asar: true,
+    // Worker 文件必须以原始文件形式打包，不能放进 asar 虚拟文件系统
+    // 否则 new Worker(workerPath) 在渲染进程内无法加载（Web Worker 不支持 asar）
+    asarUnpack: [
+        'js/dictParseWorker.js',
+        'js/yamlSerializeWorker.js',
+    ],
     overwrite: true,
     extendInfo: {
       CFBundleDisplayName: displayName,

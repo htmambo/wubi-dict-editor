@@ -9,12 +9,15 @@ function getUnicodeStringLength(str) {
 }
 
 function wordFromLine(index, lineStr) {
+    if (!lineStr) return null
+    // 去除 UTF-8 BOM
+    if (lineStr.charCodeAt(0) === 0xFEFF) lineStr = lineStr.slice(1)
+    if (!lineStr.trim()) return null
     const wordArray = lineStr.split('\t')
-    let code = wordArray[1]
-    code = code.replaceAll('\r', '')
+    if (wordArray.length < 2 || !wordArray[0] || wordArray[1] === undefined) return null
     return {
         id: index,
-        code,
+        code: wordArray[1].replaceAll('\r', ''),
         word: wordArray[0],
         priority: wordArray[2] || '',
         note: wordArray[3] || '',
@@ -43,14 +46,19 @@ function parseNormalMode(body) {
     const linesValid = lines.filter(item => item.indexOf('\t') > -1)
     const dictSetExceptCharacter = []
     const dictSet = new Set()
-    const wordsOrigin = linesValid.map((item, index) => {
+    const wordsOrigin = []
+    let maxWordId = -1
+    linesValid.forEach((item, index) => {
         const currentWord = wordFromLine(index, item)
-        dictSet.add(currentWord.word)
-        return currentWord
+        if (currentWord) {
+            dictSet.add(currentWord.word)
+            if (currentWord.id > maxWordId) maxWordId = currentWord.id
+            wordsOrigin.push(currentWord)
+        }
     })
     dictSet.forEach(w => dictSetExceptCharacter.push(w))
     console.log(`处理yaml码表文件：完成，共：${wordsOrigin.length} 条，用时 ${Date.now() - startPoint} ms`)
-    return { wordsOrigin, lastIndex, lastGroupIndex: 0, dictSetExceptCharacter }
+    return { wordsOrigin, lastIndex, lastGroupIndex: 0, dictSetExceptCharacter, maxWordId }
 }
 
 function parseGroupMode(body) {
@@ -62,6 +70,7 @@ function parseGroupMode(body) {
     let lastItemIsEmptyLine = false
     let lastGroupIndex = 0
     const lastIndex = lines.length
+    let maxWordId = -1
 
     lines.forEach((item, index) => {
         if (item.startsWith('##')) {
@@ -74,7 +83,11 @@ function parseGroupMode(body) {
             if (!temp) {
                 temp = { id: lastGroupIndex++, groupName: '', dict: [] }
             }
-            temp.dict.push(wordFromLine(index, item))
+            const w = wordFromLine(index, item)
+            if (w) {
+                if (w.id > maxWordId) maxWordId = w.id
+                temp.dict.push(w)
+            }
             lastItemIsEmptyLine = false
         } else if (item.startsWith('#')) {
             lastItemIsEmptyLine = false
@@ -100,7 +113,7 @@ function parseGroupMode(body) {
             dictSetExceptCharacter.push(w.word)
         }
     }))
-    return { wordsOrigin: wordsGroup, lastIndex, lastGroupIndex, dictSetExceptCharacter }
+    return { wordsOrigin: wordsGroup, lastIndex, lastGroupIndex, dictSetExceptCharacter, maxWordId }
 }
 
 function parseDictFile(fileContent, isForceProcessInUngroupMode) {

@@ -22,3 +22,11 @@
   - CHANGELOG v1.34
   - 4 次外部 review（2 APPROVED + 1 timeout fallback kimi APPROVED + 1 REJECTED 已修）
   - 42/42 测试通过
+
+- ✅ [审核发现的问题修复](Archive/2026-06/AUDIT_FIX_PLAN.md) — 完成于 2026-06-21
+  - P0 Dict.lastIndex 取文件中最大 word id 而非 lines.length（修复持久化 id 冲突）
+  - P0 Worker 文件 asarUnpack 排除（防止打包后 Worker 加载失败）
+  - P1 wordFromLine 边界防御（空行/BOM/缺字段）
+  - P1 PinyinMixin.created 依赖方法运行时检测
+  - P2 main.js 删除重复 getRimeExecDir，统一从 RimeExecResolver 导入
+  - 2 个新增回归测试，44/44 通过

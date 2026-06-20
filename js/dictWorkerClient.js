@@ -1,12 +1,24 @@
 const path = require('path')
 const { parseDictFile, serializeDictYaml, dictToPlainObject } = require('./dictParseCore')
 
+let electronApp = null
+try { electronApp = require('electron').app } catch { /* test env without electron */ }
+
 const PARSE_WORKER_THRESHOLD = 50000
 const SERIALIZE_WORKER_THRESHOLD = 10000
 
+// 打包后 Worker 文件被 asarUnpack 排除在 app.asar.unpacked 目录下，
+// 需要通过 app.getAppPath() 拼接正确路径；开发环境则保持 __dirname 直接加载
+function getWorkerPath(workerFile) {
+    if (electronApp && electronApp.isPackaged) {
+        return path.join(electronApp.getAppPath(), 'js', workerFile)
+    }
+    return path.join(__dirname, workerFile)
+}
+
 function runWorker(workerFile, payload) {
     return new Promise((resolve, reject) => {
-        const worker = new Worker(path.join(__dirname, workerFile))
+        const worker = new Worker(getWorkerPath(workerFile))
         worker.onmessage = (event) => {
             worker.terminate()
             if (event.data.ok) {
