@@ -46,11 +46,17 @@ fi
 # 走 electron-forge make；forge.config.js 已启用 maker-deb
 npm run make -- --platform=linux --arch="${ARCH}"
 
-DEB_PATH="${ROOT}/out/make/deb/${ARCH}/WubiDictEditor.deb"
+# 统一移动产物到 out/linux-deb/<arch>/
+TARGET_DIR="${ROOT}/out/linux-deb/${ARCH}"
+mkdir -p "${TARGET_DIR}"
+echo ">>> 移动产物到 ${TARGET_DIR}"
+find out/make -type f \( -name "*.deb" \) -exec mv {} "${TARGET_DIR}/" \; 2>/dev/null || true
+
+DEB_PATH="${TARGET_DIR}/WubiDictEditor.deb"
 if [[ ! -f "$DEB_PATH" ]]; then
   echo "❌ 未找到 .deb 产物：${DEB_PATH}"
   echo "   已生成的产物："
-  find out/make -name "*.deb" -o -name "*.zip" 2>/dev/null | sed 's/^/     /'
+  find out -name "*.deb" -o -name "*.zip" 2>/dev/null | sed 's/^/     /'
   exit 1
 fi
 

@@ -9,8 +9,8 @@ call scripts\pack-windows.bat
 if errorlevel 1 exit /b 1
 
 REM 动态匹配 Setup.exe：glob 展开第一个匹配项
-set SETUP_DIR=out\make\squirrel.windows\x64
-set SETUP_EXE=
+set "SETUP_DIR=out\windows\x64"
+set "SETUP_EXE="
 for %%f in ("%SETUP_DIR%\WubiDictEditor-* Setup.exe") do (
   if not defined SETUP_EXE set "SETUP_EXE=%%f"
 )
