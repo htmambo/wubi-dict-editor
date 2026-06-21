@@ -1,0 +1,46 @@
+# Maintainer: KyleBing <kylebing@163.com>
+pkgname=wubi-dict-editor
+pkgver=1.3.4
+pkgrel=1
+pkgdesc="五笔码表管理工具 (Wubi Dict Editor) - Electron 应用"
+arch=('x86_64')
+url="https://github.com/KyleBing/wubi-dict-editor"
+license=('MIT')
+depends=('electron' 'gtk3' 'nss' 'libxss')
+optdepends=('libappindicator-gtk3: 系统托盘支持')
+provides=('wubi-dict-editor')
+conflicts=('wubi-dict-editor')
+
+# 解包后的应用目录（由 pack-manjaro.sh 在调用 makepkg 前准备）
+source=("WubiDictEditor-linux-x64.tar.gz")
+sha256sums=('SKIP')
+
+# 阻止 makepkg 自动 strip Electron 二进制（strip 后 electron 启动报错）
+options=('!strip')
+
+package() {
+    # 把 unpacked 应用复制到 /opt/wubi-dict-editor/
+    install -dm755 "${pkgdir}/opt/${pkgname}"
+    cp -a "${srcdir}/WubiDictEditor-linux-x64/." "${pkgdir}/opt/${pkgname}/"
+    chmod +x "${pkgdir}/opt/${pkgname}/WubiDictEditor"
+
+    # 复制图标
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/wubi-dict-editor.desktop" <<EOF
+[Desktop Entry]
+Name=五笔码表助手
+Name[en]=Wubi Dict Editor
+Comment=五笔码表管理工具
+Comment[en]=Wubi dictionary management tool
+Exec=/opt/${pkgname}/WubiDictEditor %U
+Terminal=false
+Type=Application
+Icon=wubi-dict-editor
+Categories=Utility;TextEditor;
+StartupNotify=true
+EOF
+
+    if [[ -f "${pkgdir}/opt/${pkgname}/resources/assets/img/appIcon/appIcon.png" ]]; then
+        install -Dm644 "${pkgdir}/opt/${pkgname}/resources/assets/img/appIcon/appIcon.png" \
+            "${pkgdir}/usr/share/pixmaps/wubi-dict-editor.png"
+    fi
+}

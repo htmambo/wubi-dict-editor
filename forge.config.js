@@ -110,8 +110,19 @@ module.exports = {
       },
     },
     // 注意：Arch 系（manjaro/arch）无 dpkg/fakeroot/rpmbuild，
-    // 因此不在这里列出 maker-deb / maker-rpm。Linux 仅打包 zip。
-    // Arch 用户可直接用 AUR 或运行 unpacked AppImage。
+    // 但 Debian/Deepin/Ubuntu 上可用 maker-deb 出 .deb。
+    // maker-deb 在缺少 dpkg 时会抛错，由调用方（pack-debian.sh）决定是否调用
+    {
+      name: '@electron-forge/maker-deb',
+      platforms: ['linux'],
+      config: {
+        options: {
+          maintainer: 'kylebing@163.com',
+          homepage: 'https://github.com/KyleBing/wubi-dict-editor',
+        },
+      },
+    },
+    // Linux 通用 zip（所有 Linux 发行版都可解包）
     {
       name: '@electron-forge/maker-zip',
       platforms: ['linux'],
