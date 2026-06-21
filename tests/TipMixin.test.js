@@ -161,3 +161,53 @@ test('App.js: composes 6 extracted mixins after P2+Pinyin split', () => {
     assert.equal(methodsSectionRegex.test(appSource), false, 'App.js methods: { section should be removed after P2')
     assert.equal(computedSectionRegex.test(appSource), false, 'App.js computed: { section should be removed after P2')
 })
+
+test('App.js: has no orphan top-level methods after mounted() before watch:', () => {
+    // 回归测试：v1.34 重构后曾留下 isInMainDict/fileNameListMap/groupFlatItems/pinyinAddButtonLabel
+    // 等 4 个方法散落在 mounted() 与 watch: 之间，没有 methods: 包裹 → App.js 无法解析
+    // （mixins/computed.js 中已有同名定义，App.js 中应彻底删除）
+    const orphanMethods = ['isInMainDict(', 'fileNameListMap(', 'groupFlatItems(', 'pinyinAddButtonLabel(']
+    for (const sig of orphanMethods) {
+        assert.equal(
+            appSource.includes(sig),
+            false,
+            `App.js should not define ${sig} — it lives in view/index/mixins/computed.js`
+        )
+    }
+})
+
+test('mixin require paths use correct depth (../../.. for view/index/mixins/ → js/)', () => {
+    // 回归测试：v1.34 重构后 SearchMixin/SyncMixin/PinyinMixin 误用 '../../js/...'
+    // 应为 '../../../js/...'（mixins 在 view/index/mixins/ 下，需三层 ..）
+    const mixinsDir = path.join(__dirname, '..', 'view', 'index', 'mixins')
+    const expectedSegments = '../../../js/'
+    for (const file of ['SearchMixin.js', 'SyncMixin.js', 'PinyinMixin.js']) {
+        const src = fs.readFileSync(path.join(mixinsDir, file), 'utf8')
+        const wrongPath = src.match(/require\(['"]\.\.\/\.\.\/js\//)
+        assert.equal(
+            wrongPath,
+            null,
+            `${file} uses too-shallow '../../js/' path — should be '../../../js/'`
+        )
+        assert.match(
+            src,
+            new RegExp(`require\\(['"]${expectedSegments.replace(/\./g, '\\.').replace(/\//g, '\\/')}`),
+            `${file} must require '../../../js/...'`
+        )
+    }
+})
+
+test('mixin files have matching closing braces for module.exports', () => {
+    // 回归测试：PinyinMixin 曾以 '},\n}' 结尾，缺少外层 module.exports 闭合
+    const mixinsDir = path.join(__dirname, '..', 'view', 'index', 'mixins')
+    for (const file of fs.readdirSync(mixinsDir)) {
+        if (!file.endsWith('.js')) continue
+        const src = fs.readFileSync(path.join(mixinsDir, file), 'utf8')
+        // 加载成功即说明 brace 数量匹配（require 失败通常因 SyntaxError）
+        try {
+            require(path.join(mixinsDir, file))
+        } catch (err) {
+            assert.fail(`${file} failed to load: ${err.message}`)
+        }
+    }
+})
