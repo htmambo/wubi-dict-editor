@@ -9,7 +9,7 @@ const { ipcRenderer } = require('electron')
 const {
     prepareWordsForPinyinDictAsync,
     addWordsToPinyinDictInOrderAsync,
-} = require('../../js/PinyinDictHelper')
+} = require('../../../js/PinyinDictHelper')
 
 const REQUIRED_DEPS = [
     ['GroupOpMixin', ['getSelectedWords', 'saveToFile']],
@@ -115,4 +115,5 @@ module.exports = {
                 this.showTip(`添加到拼音词库失败：${err.message}`)
             }
         },
+    },
 }

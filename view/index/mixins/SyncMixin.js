@@ -2,7 +2,7 @@
 // 所有方法保持原 this 上下文；通过 mixins: [...] 注入到根 Vue 实例
 const {
     // 视 mixin 实际使用而定
-} = require('../js/Utility')
+} = require('../../../js/Utility')
 
 module.exports = {
     methods: {
