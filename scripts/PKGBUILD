@@ -6,14 +6,22 @@ pkgdesc="五笔码表管理工具 (Wubi Dict Editor) - Electron 应用"
 arch=('x86_64')
 url="https://github.com/KyleBing/wubi-dict-editor"
 license=('MIT')
-depends=('electron' 'gtk3' 'nss' 'libxss')
+depends=('gtk3' 'nss' 'libxss')
 optdepends=('libappindicator-gtk3: 系统托盘支持')
 provides=('wubi-dict-editor')
 conflicts=('wubi-dict-editor')
 
 # 解包后的应用目录（由 pack-manjaro.sh 在调用 makepkg 前准备）
-source=("WubiDictEditor-linux-x64.tar.gz")
-sha256sums=('SKIP')
+# 图标 PNG 由 pack-manjaro.sh 生成到本目录，PKGBUILD 直接读取
+source=("WubiDictEditor-linux-x64.tar.gz"
+        "appIcon-16.png"
+        "appIcon-32.png"
+        "appIcon-48.png"
+        "appIcon-64.png"
+        "appIcon-128.png"
+        "appIcon-256.png")
+sha256sums=('SKIP'
+            'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 # 阻止 makepkg 自动 strip Electron 二进制（strip 后 electron 启动报错）
 options=('!strip')
@@ -24,6 +32,11 @@ package() {
     cp -a "${srcdir}/WubiDictEditor-linux-x64/." "${pkgdir}/opt/${pkgname}/"
     chmod +x "${pkgdir}/opt/${pkgname}/WubiDictEditor"
 
+    # 删除打包进应用的 chrome-sandbox（默认 0755 非 SUID root，
+    # 启用 sandbox 会导致 Electron 直接 Abort）。
+    # 在 .desktop 中显式使用 --no-sandbox 绕过（单用户桌面应用可接受）。
+    rm -f "${pkgdir}/opt/${pkgname}/chrome-sandbox"
+
     # 复制图标
     install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/wubi-dict-editor.desktop" <<EOF
 [Desktop Entry]
@@ -31,16 +44,31 @@ Name=五笔码表助手
 Name[en]=Wubi Dict Editor
 Comment=五笔码表管理工具
 Comment[en]=Wubi dictionary management tool
-Exec=/opt/${pkgname}/WubiDictEditor %U
+Exec=/opt/${pkgname}/WubiDictEditor --no-sandbox %U
 Terminal=false
 Type=Application
 Icon=wubi-dict-editor
 Categories=Utility;TextEditor;
 StartupNotify=true
+StartupWMClass=WubiDictEditor
 EOF
 
-    if [[ -f "${pkgdir}/opt/${pkgname}/resources/assets/img/appIcon/appIcon.png" ]]; then
-        install -Dm644 "${pkgdir}/opt/${pkgname}/resources/assets/img/appIcon/appIcon.png" \
-            "${pkgdir}/usr/share/pixmaps/wubi-dict-editor.png"
+    # 安装多尺寸 PNG 图标（pack-manjaro.sh 在 stage 1.5 已生成到 ${srcdir}）
+    # 缺失则警告（图标不会出现在桌面环境）
+    local installed_icon=0
+    for size in 16 32 48 64 128 256; do
+        local icon_src="${srcdir}/appIcon-${size}.png"
+        if [[ -s "${icon_src}" ]]; then
+            install -Dm644 "${icon_src}" \
+                "${pkgdir}/usr/share/icons/hicolor/${size}x${size}/apps/wubi-dict-editor.png"
+            installed_icon=1
+        fi
+    done
+    if [[ ${installed_icon} -eq 0 ]]; then
+        echo "⚠️  未在 ${srcdir} 找到任何 appIcon-*.png，桌面图标将缺失"
+    else
+        # 兼容旧式查找路径
+        cp "${pkgdir}/usr/share/icons/hicolor/256x256/apps/wubi-dict-editor.png" \
+            "${pkgdir}/usr/share/pixmaps/wubi-dict-editor.png" 2>/dev/null || true
     fi
 }
