@@ -10,7 +10,7 @@ const IS_REQUEST_LOCAL = false // 同步请求，请求线上
 
 const CONFIG_FILE_NAME = 'config.json' // 配置文件 文件名
 const CONFIG_DICT_MAP_FILE_NAME = 'dict_map.txt' // 编码生成用的字典码表文件
-const CONFIG_FILE_PATH = 'wubi-dict-editor' // 配置文件存放的目录
+const CONFIG_FILE_PATH = 'WubiDictEditor' // 配置文件存放的目录
 
 const DEFAULT_CONFIG = {
     initFileName: 'wubi86_jidian_user.dict.yaml' ,  // 初始文件信息

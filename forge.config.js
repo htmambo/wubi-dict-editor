@@ -23,7 +23,7 @@ module.exports = {
     // 使用 ASCII 名称作为 .app / .exe，避免中文路径导致签名与 Gatekeeper 异常
     name: 'WubiDictEditor',
     executableName: 'WubiDictEditor',
-    appBundleId: 'cn.kylebing.wubi-dict-editor',
+    appBundleId: 'cn.kylebing.WubiDictEditor',
     appCopyright: 'kylebing@163.com',
     icon: iconBase,
     asar: {
@@ -116,9 +116,34 @@ module.exports = {
       name: '@electron-forge/maker-deb',
       platforms: ['linux'],
       config: {
+        // 显式指定 bin：electron-installer-debian 默认从 package.json#name 推导（=WubiDictEditor），
+        // 而 packagerConfig.executableName 才是真正的可执行文件名（WubiDictEditor）。
+        // 不指定会触发：could not find the Electron app binary at "…/WubiDictEditor"
+        bin: 'WubiDictEditor',
+        // .desktop 文件和 apt 元数据使用中文显示名（与 macOS/Windows 的 CFBundleDisplayName/title 对齐）
+        productName: displayName,
+        description: displayName,
+        // 多分辨率 hicolor 图标：electron-installer-debian 拿到对象后会按 resolution 装到
+        // /usr/share/icons/hicolor/<resolution>/apps/<appIdentifier>.png
+        // 项目里只有 .ico / .icns，提交 appIcon-<size>.png 后才能让 Linux 桌面显示正确图标
+        icon: {
+          '16x16':   `${iconBase}-16.png`,
+          '32x32':   `${iconBase}-32.png`,
+          '48x48':   `${iconBase}-48.png`,
+          '64x64':   `${iconBase}-64.png`,
+          '128x128': `${iconBase}-128.png`,
+          '256x256': `${iconBase}-256.png`,
+        },
         options: {
           maintainer: 'kylebing@163.com',
           homepage: 'https://github.com/KyleBing/wubi-dict-editor',
+          // 自定义 .desktop 模板：注入 StartupWMClass，让任务栏/启动器/Alt+Tab 能匹配运行中的窗口
+          desktopTemplate: path.join(__dirname, 'scripts/WubiDictEditor.desktop.ejs'),
+          scripts: {
+            // postinst 在「configure / triggered」阶段刷新图标与 .desktop 缓存，
+            // 否则新装的图标在 GNOME / KDE / XFCE 桌面里看不到或显示为空白。
+            postinst: path.join(__dirname, 'scripts/deb-postinst.sh'),
+          },
         },
       },
     },

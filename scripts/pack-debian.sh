@@ -50,11 +50,12 @@ npm run make -- --platform=linux --arch="${ARCH}"
 TARGET_DIR="${ROOT}/out/linux-deb/${ARCH}"
 mkdir -p "${TARGET_DIR}"
 echo ">>> 移动产物到 ${TARGET_DIR}"
-find out/make -type f \( -name "*.deb" \) -exec mv {} "${TARGET_DIR}/" \; 2>/dev/null || true
+# 保留 forge 生成的 deb 文件名（包名_版本_架构.deb）
+find out/make -type f -name "*.deb" -exec mv {} "${TARGET_DIR}/" \; 2>/dev/null || true
 
-DEB_PATH="${TARGET_DIR}/WubiDictEditor.deb"
-if [[ ! -f "$DEB_PATH" ]]; then
-  echo "❌ 未找到 .deb 产物：${DEB_PATH}"
+DEB_PATH="$(ls -1 ${TARGET_DIR}/*.deb 2>/dev/null | head -1)"
+if [[ -z "$DEB_PATH" || ! -f "$DEB_PATH" ]]; then
+  echo "❌ 未找到 .deb 产物"
   echo "   已生成的产物："
   find out -name "*.deb" -o -name "*.zip" 2>/dev/null | sed 's/^/     /'
   exit 1

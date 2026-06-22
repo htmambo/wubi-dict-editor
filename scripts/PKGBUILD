@@ -1,5 +1,5 @@
 # Maintainer: KyleBing <kylebing@163.com>
-pkgname=wubi-dict-editor
+pkgname=WubiDictEditor
 pkgver=1.3.4
 pkgrel=1
 pkgdesc="五笔码表管理工具 (Wubi Dict Editor) - Electron 应用"
@@ -8,8 +8,8 @@ url="https://github.com/KyleBing/wubi-dict-editor"
 license=('MIT')
 depends=('gtk3' 'nss' 'libxss')
 optdepends=('libappindicator-gtk3: 系统托盘支持')
-provides=('wubi-dict-editor')
-conflicts=('wubi-dict-editor')
+provides=('WubiDictEditor')
+conflicts=('wubi-dict-editor' 'WubiDictEditor')
 
 # 解包后的应用目录（由 pack-manjaro.sh 在调用 makepkg 前准备）
 # 图标 PNG 由 pack-manjaro.sh 生成到本目录，PKGBUILD 直接读取
@@ -27,7 +27,7 @@ sha256sums=('SKIP'
 options=('!strip')
 
 package() {
-    # 把 unpacked 应用复制到 /opt/wubi-dict-editor/
+    # 把 unpacked 应用复制到 /opt/WubiDictEditor/
     install -dm755 "${pkgdir}/opt/${pkgname}"
     cp -a "${srcdir}/WubiDictEditor-linux-x64/." "${pkgdir}/opt/${pkgname}/"
     chmod +x "${pkgdir}/opt/${pkgname}/WubiDictEditor"
@@ -38,7 +38,7 @@ package() {
     rm -f "${pkgdir}/opt/${pkgname}/chrome-sandbox"
 
     # 复制图标
-    install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/wubi-dict-editor.desktop" <<EOF
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/WubiDictEditor.desktop" <<EOF
 [Desktop Entry]
 Name=五笔码表助手
 Name[en]=Wubi Dict Editor
@@ -47,7 +47,7 @@ Comment[en]=Wubi dictionary management tool
 Exec=/opt/${pkgname}/WubiDictEditor --no-sandbox %U
 Terminal=false
 Type=Application
-Icon=wubi-dict-editor
+Icon=WubiDictEditor
 Categories=Utility;TextEditor;
 StartupNotify=true
 StartupWMClass=WubiDictEditor
@@ -60,7 +60,7 @@ EOF
         local icon_src="${srcdir}/appIcon-${size}.png"
         if [[ -s "${icon_src}" ]]; then
             install -Dm644 "${icon_src}" \
-                "${pkgdir}/usr/share/icons/hicolor/${size}x${size}/apps/wubi-dict-editor.png"
+                "${pkgdir}/usr/share/icons/hicolor/${size}x${size}/apps/WubiDictEditor.png"
             installed_icon=1
         fi
     done
@@ -68,7 +68,7 @@ EOF
         echo "⚠️  未在 ${srcdir} 找到任何 appIcon-*.png，桌面图标将缺失"
     else
         # 兼容旧式查找路径
-        cp "${pkgdir}/usr/share/icons/hicolor/256x256/apps/wubi-dict-editor.png" \
-            "${pkgdir}/usr/share/pixmaps/wubi-dict-editor.png" 2>/dev/null || true
+        cp "${pkgdir}/usr/share/icons/hicolor/256x256/apps/WubiDictEditor.png" \
+            "${pkgdir}/usr/share/pixmaps/WubiDictEditor.png" 2>/dev/null || true
     fi
 }

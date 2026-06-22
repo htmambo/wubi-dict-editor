@@ -4,6 +4,17 @@ if (require('electron-squirrel-startup')) {
 }
 
 const {app, globalShortcut, BrowserWindow, Menu, ipcMain, shell, dialog, net, Notification} = require('electron')
+
+// 强制设置应用名为 package.json#name
+// 默认情况下 Electron 在 Linux 上会用 process.execPath 的 basename（=WubiDictEditor，来自
+// forge.config.js 的 executableName）作为 X11 WM_CLASS，与 .desktop 的 StartupWMClass 不一致，
+// 导致任务栏 / Alt+Tab 切换器里窗口图标显示为空白。
+// 显式 setName 后窗口 WM_CLASS = wubi-dict-editor，与 deb .desktop 的 StartupWMClass 匹配。
+app.setName('WubiDictEditor')
+// setName 只改 app.getName()，不一定改窗口的 _NET_WM_CLASS。
+// 在 Linux 上额外设置 process.title，Electron 早期版本会把它作为 X11 WMClass 的 instance/class
+// 的派生源之一；这一步在部分桌面环境（Deepin dde-kwin / GNOME Shell）下能强制让 WMClass 跟随应用名。
+process.title = 'WubiDictEditor'
 const {exec} = require('child_process')
 const fs = require('fs')
 const os = require('os')
@@ -24,6 +35,20 @@ const plist = require("plist")
 const wubiApi = require("./js/wubiApi")
 const rimeExecResolver = require('./js/RimeExecResolver')
 const { getRimeExecDir, WEASEL_DEPLOYER, normalizeConfiguredExecDir } = rimeExecResolver
+const pkg = require('./package.json')
+
+// 应用元信息（关于窗口 + 菜单展示用）
+const APP_META = {
+    displayName: '五笔码表助手',        // 用户可见名称（中文）
+    appName: pkg.name,                  // 包名/可执行名（ASCII，用于系统识别）
+    productName: 'WubiDictEditor',       // packager 产物名
+    version: pkg.version,                // 版本号
+    authorName: 'KyleBing',
+    authorEmail: 'kylebing@163.com',
+    homepage: 'https://github.com/KyleBing/wubi-dict-editor',
+    copyrightYear: '2021-2026',
+    description: pkg.description || '五笔码表管理工具',
+}
 
 let mainWindow // 主窗口
 let fileList = [] // 文件目录列表，用于移动词条
@@ -844,7 +869,7 @@ function createMenu() {
             label: '关于',
             submenu: [
                 {label: '最小化', role: 'minimize'},
-                {label: '关于', role: 'about'},
+                {label: '关于', click() { showAboutDialog() }},
                 {type: 'separator'},
                 {label: '退出', role: 'quit'},
             ]
@@ -857,6 +882,50 @@ function createMenu() {
     }
     let menu = Menu.buildFromTemplate(menuStructure)
     Menu.setApplicationMenu(menu)
+}
+
+// 初始化 macOS / Linux GTK 原生关于面板（Windows 上 setAboutPanelOptions 无可见效果）
+app.setAboutPanelOptions({
+    applicationName: APP_META.displayName,
+    applicationVersion: APP_META.version,
+    version: APP_META.version,
+    copyright: `© ${APP_META.copyrightYear} ${APP_META.authorName}`,
+    credits: [
+        `${APP_META.displayName} (${APP_META.appName})`,
+        `版本 ${APP_META.version}`,
+        `包名: ${APP_META.appName}`,
+        `仓库: ${APP_META.homepage}`,
+    ].join('\n'),
+    authors: [APP_META.authorName],
+    website: APP_META.homepage,
+})
+
+// 关于窗口：macOS 走原生面板（OS 自动处理），其他平台用 dialog.showMessageBox 自定义卡片
+function showAboutDialog() {
+    if (process.platform === 'darwin') {
+        app.showAboutPanel()
+        return
+    }
+    const iconPath = path.join(__dirname, 'assets/img/appIcon/appIcon.png')
+    const detail = [
+        `应用名称: ${APP_META.displayName}`,
+        `包名: ${APP_META.appName}`,
+        `产品名: ${APP_META.productName}`,
+        `版本: ${APP_META.version}`,
+        `作者: ${APP_META.authorName} <${APP_META.authorEmail}>`,
+        `仓库: ${APP_META.homepage}`,
+        `© ${APP_META.copyrightYear}`,
+    ].join('\n')
+    const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+    dialog.showMessageBox(win, {
+        type: 'info',
+        title: '关于',
+        message: APP_META.displayName,
+        detail,
+        buttons: ['确定'],
+        defaultId: 0,
+        icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    })
 }
 
 // 刷新所有窗口内容
@@ -894,7 +963,11 @@ function applyRime() {
     const config = readConfigFile()
     const rimeBinDir = getRimeExecDir(os.platform(), config && config.rimeExecDir)
     if (!rimeBinDir) {
-        const message = '未找到 WeaselDeployer.exe，请在设置中指定输入法程序目录'
+        const message = os.platform() === 'win32'
+            ? '未找到 WeaselDeployer.exe，请在设置中指定输入法程序目录'
+            : os.platform() === 'linux'
+                ? '未检测到 rime_deployer（请安装 librime 或 fcitx5-rime / ibus-rime）'
+                : '未找到输入法部署程序'
         console.log(message)
         return { success: false, message }
     }
@@ -919,6 +992,36 @@ function applyRime() {
             })
             return { success: true, message: '已触发部署', execDir: rimeBinDir }
         }
+        case 'linux': {
+            // rimeBinDir 在 Linux 下是 deployer 描述符 {frontend, deployCmd, reloadCmd, reloadArgs, dataDir}
+            const deployer = rimeBinDir
+            // 数据目录用 apply 时用户配置的 rimeHomeDir（如果有），否则用探测到的默认
+            const dataDir = (config && config.rimeHomeDir) || deployer.dataDir
+            if (!dataDir || !fs.existsSync(dataDir)) {
+                return { success: false, message: `Rime 配置目录不存在: ${dataDir}` }
+            }
+            // 1) rime_deployer --build <dataDir>  把 yaml 同步成 .bin
+            exec(`"${deployer.deployCmd}" --build "${dataDir}"`, (buildErr, buildStdout, buildStderr) => {
+                if (buildErr) {
+                    console.log('rime_deployer 失败:', buildErr.message, buildStderr)
+                    return
+                }
+                console.log('rime_deployer 输出:', buildStdout)
+                // 2) 通知前端重载；reloadCmd 不存在时静默跳过（rime 会在下次打开时自动加载）
+                if (deployer.reloadCmd) {
+                    exec(`"${deployer.reloadCmd}" ${deployer.reloadArgs.join(' ')}`, reloadErr => {
+                        if (reloadErr) {
+                            console.log(`${deployer.reloadCmd} 重载失败（可忽略）:`, reloadErr.message)
+                        }
+                    })
+                }
+            })
+            return {
+                success: true,
+                message: `已触发 ${deployer.frontend} 部署`,
+                execDir: dataDir,
+            }
+        }
         default:
             return { success: false, message: '当前系统不支持自动部署' }
     }
@@ -937,7 +1040,7 @@ function getRimeConfigDir() {
             case 'freebsd':
                 break
             case 'linux':
-                return path.join(userHome + '/.config/ibus/rime/')
+                return detectLinuxRimeConfigDir(userHome)
             case 'openbsd':
                 break
             case 'sunos':
@@ -948,6 +1051,27 @@ function getRimeConfigDir() {
     } else {
         return config.rimeHomeDir
     }
+}
+
+// Linux 下探测系统中实际使用的 Rime 前端配置目录
+// 探测顺序：fcitx5（Deepin/Ubuntu 现代默认）→ ibus → fcitx4
+// 已配置的用户路径优先级最高（getRimeConfigDir 中已处理）；此函数仅在「未设置」时被调用
+function detectLinuxRimeConfigDir(userHome) {
+    const candidates = [
+        path.join(userHome, '.local', 'share', 'fcitx5', 'rime'),   // fcitx5-rime（Deepin/Ubuntu 新版）
+        path.join(userHome, '.config', 'ibus', 'rime'),              // ibus-rime
+        path.join(userHome, '.config', 'fcitx', 'rime'),             // fcitx4-rime
+    ]
+    for (const dir of candidates) {
+        try {
+            // 目录存在即视为命中（即便为空也合理；用户可能刚装好 Rime）
+            if (fs.statSync(dir).isDirectory()) return dir
+        } catch (_) {
+            // 不存在则继续探测下一个
+        }
+    }
+    // 都没探测到时回退到 fcitx5 路径（现代 Linux 桌面最常见；不命中时与 ibus-rime 一样会显示空文件列表）
+    return candidates[0]
 }
 
 function getAppConfigDir() {

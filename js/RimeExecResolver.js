@@ -154,12 +154,76 @@ function getMacRimeExecDir() {
     return squirrelDir
 }
 
+// Linux 下 Rime 部署需要外部命令行工具：
+//   rime_deployer --build <userDataDir>  → 同步 yaml/build 出 .bin
+//   fcitx5-remote -r / ibus restart      → 通知前端重载
+// 返回哪个部署器可用 + 哪个数据目录（与 getRimeConfigDir 保持一致）
+function detectLinuxRimeDeployer(userHome) {
+    const candidates = [
+        // [frontend, deployCmd, reloadCmd, defaultDataDir]
+        {
+            frontend: 'fcitx5',
+            deployCmd: 'rime_deployer',
+            reloadCmd: 'fcitx5-remote',
+            reloadArgs: ['-r'],
+            dataDir: path.join(userHome, '.local', 'share', 'fcitx5', 'rime'),
+        },
+        {
+            frontend: 'ibus',
+            deployCmd: 'rime_deployer',
+            reloadCmd: 'ibus',
+            reloadArgs: ['restart'],
+            dataDir: path.join(userHome, '.config', 'ibus', 'rime'),
+        },
+        {
+            frontend: 'fcitx4',
+            deployCmd: 'rime_deployer',
+            reloadCmd: 'fcitx4-remote',
+            reloadArgs: ['-r'],
+            dataDir: path.join(userHome, '.config', 'fcitx', 'rime'),
+        },
+    ]
+    // 1) 优先选数据目录真实存在的前端（用户真的用了这个）
+    for (const c of candidates) {
+        if (dirExists(c.dataDir) && commandExists(c.deployCmd)) {
+            return c
+        }
+    }
+    // 2) 退而求其次：只装好了 deployer
+    for (const c of candidates) {
+        if (commandExists(c.deployCmd)) {
+            return c
+        }
+    }
+    return null
+}
+
+function commandExists(cmd) {
+    // PATH 查找；避免 shell 注入（cmd 是固定白名单）
+    if (typeof cmd !== 'string' || /[^a-zA-Z0-9_.-]/.test(cmd)) return false
+    const pathEnv = process.env.PATH || ''
+    const dirs = pathEnv.split(path.delimiter)
+    for (const d of dirs) {
+        if (!d) continue
+        const full = path.join(d, cmd)
+        try {
+            if (fs.statSync(full).isFile()) return true
+        } catch (_) {}
+    }
+    return false
+}
+
 function getRimeExecDir(platform, configRimeExecDir = '') {
     switch (platform) {
         case 'darwin':
             return getMacRimeExecDir()
         case 'win32':
             return resolveRimeExecDirWin(configRimeExecDir)
+        case 'linux': {
+            // Linux 不再走「找 WeaselDeployer.exe」的概念；
+            // 直接返回可用的部署器描述符（给 main.js 的 applyRime 使用）
+            return detectLinuxRimeDeployer(process.env.HOME || '')
+        }
         default:
             return null
     }
@@ -173,6 +237,8 @@ module.exports = {
     isValidWeaselExecDir,
     normalizeConfiguredExecDir,
     resolveRimeExecDirWin,
+    getMacRimeExecDir,
+    detectLinuxRimeDeployer,
     getRimeExecDir,
     discoverLatestWeaselExecDir,
 }
