@@ -12,8 +12,18 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-ARCH="${1:-arm64}"
-echo ">>> 打包 macOS (${ARCH}) ..."
+# 默认按当前机器自动判断架构（Apple Silicon → arm64，Intel → x64），
+# 也允许显式传参：bash scripts/pack-mac.sh arm64 | x64
+detect_arch() {
+  case "$(uname -m)" in
+    arm64|aarch64) echo arm64 ;;
+    x86_64)        echo x64  ;;
+    *)             echo arm64 ;;  # 兜底：未知架构时跟随 macOS 当前主流
+  esac
+}
+
+ARCH="${1:-$(detect_arch)}"
+echo ">>> 打包 macOS (${ARCH}) [主机架构: $(uname -m)] ..."
 
 npm run make -- --platform=darwin --arch="${ARCH}"
 
