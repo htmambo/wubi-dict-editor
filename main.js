@@ -958,6 +958,76 @@ function getDictFileList() {
     })
 }
 
+// 通知前端重载 rime 数据
+// fcitx5-rime 不能用 fcitx5-remote -r（那只是 reload fcitx5 配置，不重载 rime 数据）
+// 真正能强制 rime 重新读 build/*.bin 的方式：SetSchema 切走再切回
+// ibus restart / fcitx4-remote -r 则可以直接重载
+function reloadRimeFrontend(deployer) {
+    if (deployer.reloadStrategy === 'dbus-schema-switch') {
+        // fcitx5：用 gdbus 调 org.fcitx.Fcitx.Rime1.SetSchema
+        const fall = deployer.fallbackSchema
+        const back = deployer.deploySchema
+        if (!fall || !back) {
+            console.log('reload: 缺少 schema 名配置，跳过 DBus 切换')
+            return
+        }
+        // gdbus call 同步执行；gdbus 不在 PATH 上时降级到 dbus-send
+        const gdbusOrSend = commandExists('gdbus') ? 'gdbus' : 'dbus-send'
+        // 1) 切到 fallback schema
+        exec(`${gdbusOrSend} ${gdbusOrSend === 'gdbus' ? 'call' : ''} --session --dest org.fcitx.Fcitx5 --object-path /rime --method org.fcitx.Fcitx.Rime1.SetSchema ${fall}`.trim(),
+            (err1) => {
+                if (err1) {
+                    console.log(`切到 ${fall} 失败:`, err1.message)
+                    return
+                }
+                // 2) 等待 1 秒
+                setTimeout(() => {
+                    // 3) 切回原 schema（这会触发 rime 重新读 build/*.bin）
+                    exec(`${gdbusOrSend} ${gdbusOrSend === 'gdbus' ? 'call' : ''} --session --dest org.fcitx.Fcitx5 --object-path /rime --method org.fcitx.Fcitx.Rime1.SetSchema ${back}`.trim(),
+                        (err2) => {
+                            if (err2) {
+                                console.log(`切回 ${back} 失败:`, err2.message)
+                            } else {
+                                console.log(`fcitx5 rime schema 切换 ${fall} → ${back} 完成，rime 已重载`)
+                            }
+                        })
+                }, 1000)
+            })
+        return
+    }
+    if (deployer.reloadStrategy === 'command' && deployer.reloadCmd) {
+        // ibus / fcitx4
+        exec(`"${deployer.reloadCmd}" ${deployer.reloadArgs.join(' ')}`, (reloadErr) => {
+            if (reloadErr) {
+                console.log(`${deployer.reloadCmd} 重载失败（可忽略）:`, reloadErr.message)
+            }
+        })
+        return
+    }
+    // 旧版描述符（无 reloadStrategy 字段）：兼容路径
+    if (deployer.reloadCmd) {
+        exec(`"${deployer.reloadCmd}" ${deployer.reloadArgs.join(' ')}`, (reloadErr) => {
+            if (reloadErr) {
+                console.log(`${deployer.reloadCmd} 重载失败（可忽略）:`, reloadErr.message)
+            }
+        })
+    }
+}
+
+function commandExists(cmd) {
+    if (typeof cmd !== 'string' || /[^a-zA-Z0-9_.-]/.test(cmd)) return false
+    const pathEnv = process.env.PATH || ''
+    const dirs = pathEnv.split(path.delimiter)
+    for (const d of dirs) {
+        if (!d) continue
+        const full = path.join(d, cmd)
+        try {
+            if (fs.statSync(full).isFile()) return true
+        } catch (_) {}
+    }
+    return false
+}
+
 // 部署 Rime
 function applyRime() {
     const config = readConfigFile()
@@ -993,7 +1063,7 @@ function applyRime() {
             return { success: true, message: '已触发部署', execDir: rimeBinDir }
         }
         case 'linux': {
-            // rimeBinDir 在 Linux 下是 deployer 描述符 {frontend, deployCmd, reloadCmd, reloadArgs, dataDir}
+            // rimeBinDir 在 Linux 下是 deployer 描述符
             const deployer = rimeBinDir
             // 数据目录用 apply 时用户配置的 rimeHomeDir（如果有），否则用探测到的默认
             const dataDir = (config && config.rimeHomeDir) || deployer.dataDir
@@ -1007,14 +1077,8 @@ function applyRime() {
                     return
                 }
                 console.log('rime_deployer 输出:', buildStdout)
-                // 2) 通知前端重载；reloadCmd 不存在时静默跳过（rime 会在下次打开时自动加载）
-                if (deployer.reloadCmd) {
-                    exec(`"${deployer.reloadCmd}" ${deployer.reloadArgs.join(' ')}`, reloadErr => {
-                        if (reloadErr) {
-                            console.log(`${deployer.reloadCmd} 重载失败（可忽略）:`, reloadErr.message)
-                        }
-                    })
-                }
+                // 2) 通知前端重载 rime 数据
+                reloadRimeFrontend(deployer)
             })
             return {
                 success: true,

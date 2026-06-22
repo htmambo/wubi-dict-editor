@@ -156,28 +156,36 @@ function getMacRimeExecDir() {
 
 // Linux 下 Rime 部署需要外部命令行工具：
 //   rime_deployer --build <userDataDir>  → 同步 yaml/build 出 .bin
-//   fcitx5-remote -r / ibus restart      → 通知前端重载
+//   通知前端重载：fcitx5/ibus/fcitx4 各有不同方式
 // 返回哪个部署器可用 + 哪个数据目录（与 getRimeConfigDir 保持一致）
 function detectLinuxRimeDeployer(userHome) {
     const candidates = [
-        // [frontend, deployCmd, reloadCmd, defaultDataDir]
         {
+            // fcitx5-rime：fcitx5-remote -r 不能让 rime 重新读 build/*.bin（只重载 fcitx5 配置），
+            // 真正能重载 rime 数据的是 SetSchema 切走再切回（DBus）
             frontend: 'fcitx5',
             deployCmd: 'rime_deployer',
-            reloadCmd: 'fcitx5-remote',
-            reloadArgs: ['-r'],
+            // reload 策略：'dbus-schema-switch' 用 gdbus SetSchema 切走再切回
+            // 备选 schema 用 pinyin_simp（几乎所有 fcitx5 用户都装了的）
+            reloadStrategy: 'dbus-schema-switch',
+            deploySchema: 'wubi86_jidian',
+            fallbackSchema: 'pinyin_simp',
             dataDir: path.join(userHome, '.local', 'share', 'fcitx5', 'rime'),
         },
         {
+            // ibus-rime：ibus restart 真的能重载（ibus 重启会重新初始化 rime addon）
             frontend: 'ibus',
             deployCmd: 'rime_deployer',
+            reloadStrategy: 'command',
             reloadCmd: 'ibus',
             reloadArgs: ['restart'],
             dataDir: path.join(userHome, '.config', 'ibus', 'rime'),
         },
         {
+            // fcitx4-rime：fcitx4-remote -r 真的能重载
             frontend: 'fcitx4',
             deployCmd: 'rime_deployer',
+            reloadStrategy: 'command',
             reloadCmd: 'fcitx4-remote',
             reloadArgs: ['-r'],
             dataDir: path.join(userHome, '.config', 'fcitx', 'rime'),
