@@ -7,6 +7,11 @@
 
 ### 2026-06
 
+- ✅ [pack-mac.sh 默认架构改为自动检测](Archive/2026-06/PACK_MAC_ARCH_AUTO_PLAN.md) — 完成于 2026-06-23
+  - `ARCH="${1:-arm64}"` → `uname -m` 自动检测
+  - `package.json` 重构 `make:mac*` → `pack:mac*`，新增 `pack:mac:all`
+  - 47/47 测试通过
+
 - ✅ [fork 与上游对齐 + 内部重构](Archive/2026-06/P0P1_REFACTOR_PLAN.md) — 完成于 2026-06-19
   - P0 合并 PinyinDictHelper 同步/异步实现
   - P1 round-trip smoke test
