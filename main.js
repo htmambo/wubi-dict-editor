@@ -1070,8 +1070,23 @@ function applyRime() {
             if (!dataDir || !fs.existsSync(dataDir)) {
                 return { success: false, message: `Rime 配置目录不存在: ${dataDir}` }
             }
-            // 1) rime_deployer --build <dataDir>  把 yaml 同步成 .bin
-            exec(`"${deployer.deployCmd}" --build "${dataDir}"`, (buildErr, buildStdout, buildStderr) => {
+
+            // Rime 共享数据目录：显式指定才能跨发行版稳定编译（Arch/Manjaro 默认共享目录为空）
+            const SHARED_DATA_DIRS = [
+                '/usr/share/rime-data',            // fcitx5-rime / ibus-rime 通用安装路径
+                '/usr/share/rime',                 // 部分旧版发行版
+            ]
+            const sharedDataDir = SHARED_DATA_DIRS.find(dir => fs.existsSync(dir)) || ''
+            const stagingDir = path.join(dataDir, 'build')
+
+            // 1) rime_deployer --build <dataDir> [sharedDataDir] [stagingDir] 把 yaml 同步成 .bin
+            const buildArgs = [`"${deployer.deployCmd}"`, '--build', `"${dataDir}"`]
+            if (sharedDataDir) buildArgs.push(`"${sharedDataDir}"`)
+            buildArgs.push(`"${stagingDir}"`)
+            const buildCmd = buildArgs.join(' ')
+            console.log('执行部署命令:', buildCmd)
+
+            exec(buildCmd, (buildErr, buildStdout, buildStderr) => {
                 if (buildErr) {
                     console.log('rime_deployer 失败:', buildErr.message, buildStderr)
                     return

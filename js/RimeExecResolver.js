@@ -155,9 +155,9 @@ function getMacRimeExecDir() {
 }
 
 // Linux 下 Rime 部署需要外部命令行工具：
-//   rime_deployer --build <userDataDir>  → 同步 yaml/build 出 .bin
-//   通知前端重载：fcitx5/ibus/fcitx4 各有不同方式
+//   rime_deployer --build <userDataDir> [sharedDataDir] [stagingDir]  → 同步 yaml/build 出 .bin
 // 返回哪个部署器可用 + 哪个数据目录（与 getRimeConfigDir 保持一致）
+// 注意：真正的「让新词库生效」需要通知 Rime 前端重新加载/部署，这部分逻辑在 main.js 的 reloadRimeFrontend 中处理
 function detectLinuxRimeDeployer(userHome) {
     const candidates = [
         {
@@ -165,7 +165,7 @@ function detectLinuxRimeDeployer(userHome) {
             // 真正能重载 rime 数据的是 SetSchema 切走再切回（DBus）
             frontend: 'fcitx5',
             deployCmd: 'rime_deployer',
-            // reload 策略：'dbus-schema-switch' 用 gdbus SetSchema 切走再切回
+            // reload 策略：'dbus-schema-switch' 用 gdbus/dbus-send SetSchema 切走再切回
             // 备选 schema 用 pinyin_simp（几乎所有 fcitx5 用户都装了的）
             reloadStrategy: 'dbus-schema-switch',
             deploySchema: 'wubi86_jidian',

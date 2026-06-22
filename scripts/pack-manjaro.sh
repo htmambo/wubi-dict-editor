@@ -112,7 +112,7 @@ mkdir -p "${TARGET_DIR}"
 echo ">>> 移动产物到 ${TARGET_DIR}"
 cp "${BUILD_DIR}"/*.pkg.tar.* "${TARGET_DIR}/"
 
-PKG_FILE="$(ls ${TARGET_DIR}/wubi-dict-editor-*.pkg.tar.* | head -1 | xargs -n1 basename)"
+PKG_FILE="$(ls ${TARGET_DIR}/WubiDictEditor-*.pkg.tar.* | head -1 | xargs -n1 basename)"
 
 echo ""
 echo ">>> 产物: ${TARGET_DIR}/${PKG_FILE}"
