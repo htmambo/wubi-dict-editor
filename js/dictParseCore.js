@@ -39,7 +39,7 @@ function wordToYamlString(word) {
 }
 
 function parseNormalMode(body) {
-    const startPoint = Date.now()
+    const startPoint = new Date().getTime()
     body = body.replace(/\r\n/g, '\n')
     const lines = body.split(EOL)
     const lastIndex = lines.length
@@ -57,12 +57,12 @@ function parseNormalMode(body) {
         }
     })
     dictSet.forEach(w => dictSetExceptCharacter.push(w))
-    console.log(`处理yaml码表文件：完成，共：${wordsOrigin.length} 条，用时 ${Date.now() - startPoint} ms`)
+    console.log(`处理yaml码表文件：完成，共：${wordsOrigin.length} 条，用时 ${new Date().getTime() - startPoint} ms`)
     return { wordsOrigin, lastIndex, lastGroupIndex: 0, dictSetExceptCharacter, maxWordId }
 }
 
 function parseGroupMode(body) {
-    const startPoint = Date.now()
+    const startPoint = new Date().getTime()
     body = body.replace(/\r\n/g, '\n')
     const lines = body.split(EOL)
     const wordsGroup = []
@@ -103,7 +103,7 @@ function parseGroupMode(body) {
         }
     })
 
-    console.log(`处理yaml码表文件：完成，共：${wordsGroup.length} 组，用时 ${Date.now() - startPoint} ms`)
+    console.log(`处理yaml码表文件：完成，共：${wordsGroup.length} 组，用时 ${new Date().getTime() - startPoint} ms`)
     if (temp && temp.dict.length > 0) {
         wordsGroup.push(temp)
     }
@@ -146,7 +146,7 @@ function parseDictFile(fileContent, isForceProcessInUngroupMode) {
 }
 
 function serializeDictYaml(parsed) {
-    const startPoint = Date.now()
+    const startPoint = new Date().getTime()
     let yamlBody
     if (parsed.isGroupMode) {
         yamlBody = parsed.wordsOrigin
@@ -160,7 +160,7 @@ function serializeDictYaml(parsed) {
         yamlBody = parsed.wordsOrigin.map(wordToYamlString).join(EOL)
     }
     const result = parsed.header + EOL + yamlBody
-    console.log(`词条文本已生成，用时 ${Date.now() - startPoint} ms`)
+    console.log(`词条文本已生成，用时 ${new Date().getTime() - startPoint} ms`)
     return result
 }
 

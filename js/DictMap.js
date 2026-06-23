@@ -48,14 +48,6 @@ class DictMap {
     getDictWordsInNormalMode(fileContent){
         this.characterMap = new Map() // 单字码表，用于根据此生成词语码表
 
-        // 处理 rime 码表
-        let indexEndOfHeader = fileContent.indexOf('...')
-        let bodyString = ''
-        if (indexEndOfHeader > 0){
-            bodyString = fileContent.substring(this.indexEndOfHeader)
-        } else {
-            bodyString = fileContent
-        }
         // 处理词条
         let startPoint = new Date().getTime()
         fileContent = fileContent.replace(/\r\n/g,'\n')

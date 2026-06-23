@@ -29,7 +29,7 @@ const {
     CONFIG_FILE_NAME,
     DEFAULT_CONFIG,
     CONFIG_DICT_MAP_FILE_NAME,
-    SYNC_MAX_WORD_COUNT
+    SYNC_MAX_WORD_COUNT = 40000 // 兜底默认值，防止 Global 导出变更时消息渲染为 "undefined"
 } = require('./js/Global')
 const plist = require("plist")
 const wubiApi = require("./js/wubiApi")
@@ -288,7 +288,7 @@ function createMainWindow() {
                     console.log(err)
                 })
         } else {
-            mainWindow.send('MainWindow:sync.save:FAIL', '同步内容超过 20000 字')
+            mainWindow.send('MainWindow:sync.save:FAIL', `同步内容超过 ${SYNC_MAX_WORD_COUNT} 字符`)
         }
     })
 

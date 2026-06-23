@@ -7,6 +7,12 @@
 
 ### 2026-06
 
+- ✅ [audit-fix-followup](Archive/2026-06/AUDIT_FIX_FOLLOWUP_PLAN.md) — 完成于 2026-06-23
+  - P1 同步上限文案 20000→动态引用 SYNC_MAX_WORD_COUNT + 解构默认值
+  - P3 DictMap.js 删除 bodyString 死代码
+  - P3 dictParseCore.js 6 处 Date.now()→new Date().getTime() 风格统一
+  - 2 轮外部审核 + 1 轮 architect 复核均 APPROVED,47/47 测试通过
+
 - ✅ [pack-mac.sh 默认架构改为自动检测](Archive/2026-06/PACK_MAC_ARCH_AUTO_PLAN.md) — 完成于 2026-06-23
   - `ARCH="${1:-arm64}"` → `uname -m` 自动检测
   - `package.json` 重构 `make:mac*` → `pack:mac*`，新增 `pack:mac:all`
