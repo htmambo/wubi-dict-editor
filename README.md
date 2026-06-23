@@ -149,7 +149,11 @@ drwxr-xr-x    6 Kyle  staff     192 Nov 28 12:20 view
 ```
 
 执行以下指令，直到完成
+
+> 注意：npm 11+ 不再读取项目 `.npmrc` 中的 `electron_mirror`，安装 `electron` 前需要先设置镜像环境变量，否则会出现 TLS 断连错误。
+
 ```bash
+export ELECTRON_MIRROR=https://cdn.npmmirror.com/binaries/electron/
 npm i
 ```
 
