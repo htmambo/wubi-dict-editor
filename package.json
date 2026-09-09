@@ -25,6 +25,8 @@
     "pack:manjaro": "bash scripts/pack-manjaro.sh",
     "pack:linux": "bash scripts/install-linux.sh",
     "install:electron": "node node_modules/electron/install.js",
+    "fix:extract-zip": "node scripts/fix-extract-zip.js",
+    "postinstall": "node scripts/fix-extract-zip.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {

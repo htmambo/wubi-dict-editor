@@ -1,3 +1,12 @@
+## v1.35 `2026-09-09`
+- fix（Deepin 25 + Treeland）：打包卡"Packaging for x64 on linux"
+  - 根因：`extract-zip@2.0.1` 在 Node v22+ 上解 electron-v28.x 的 zip 走到第一个 entry 就退出，packager 无进度也无错误
+  - 修复：`scripts/fix-extract-zip.js` 把 `@electron/packager/dist/unzip.js` 替换为 `spawn('unzip')`；idempotent，挂在 `postinstall` 自动应用
+- fix（Deepin 25 + Treeland 4K 屏）：窗口内容字号相对标题栏偏小
+  - 根因：XWayland 报 size=2880×1800（OS 133% 缩放后 logical），Chromium 内部 dpr=1，物理 buffer 只占 4K 屏 43%；`BrowserWindow.setSize` / `setZoomFactor` 在 XWayland 下不可靠改变 layout viewport
+  - 修复：`main.js` 加 `ozone-platform=x11` + `force-device-scale-factor=1`，`did-finish-load` 后 `webContents.insertCSS('html, body { zoom: 1.2 !important }')`，CSS zoom 默认 1.2（4K 实测合适），可被 `WUBI_ZOOM_FACTOR` 环境变量覆盖
+- docs：新增 `docs/Task/Archive/2026-09/DEEPIN_TREELAND_FIX.md`，记录根因 / 改动 / 验收
+
 ## v1.34 `2026-06-19`
 - 重构：把 `GroupOpMixin.js` 中的拼音相关 5 个方法（`beginPinyinAdd` / `updatePinyinAddProgress` / `finishPinyinAdd` / `addSelectionToPinyinDict` / `applyAddToPinyinDict`）抽到独立 `view/index/mixins/PinyinMixin.js`（92 行）
 - 重构：`GroupOpMixin.js` 删除残留的空 `require('js/Utility')` 占位符；448 → 367 行

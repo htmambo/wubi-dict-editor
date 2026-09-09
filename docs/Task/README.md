@@ -5,6 +5,14 @@
 
 ## 已完成任务 (Archive)
 
+### 2026-09
+
+- ✅ [Deepin 25 + Treeland 打包与字号修复](Archive/2026-09/DEEPIN_TREELAND_FIX.md) — 完成于 2026-09-09
+  - P0 `scripts/fix-extract-zip.js` + `postinstall` 自动 patch `@electron/packager` 的 `extract-zip` 卡死
+  - P0 `main.js` `ozone-platform=x11` + `force-device-scale-factor=1` + CSS zoom=1.2
+  - P1 `WUBI_ZOOM_FACTOR` 环境变量覆盖默认 zoom
+  - 4K 屏实测 CSS zoom=1.2 视觉字号与标题栏一致；打包端到端 23s 完成
+
 ### 2026-06
 
 - ✅ [audit-fix-followup](Archive/2026-06/AUDIT_FIX_FOLLOWUP_PLAN.md) — 完成于 2026-06-23
