@@ -30,6 +30,7 @@ const DEFAULT_CONFIG = {
         // [{ "name": "luna_pinyin.sogou", "path": "luna_pinyin.sogou.dict.yaml" }]
     mainDictFileName: 'wubi86_jidian.dict.yaml',    // 主词库文件名 v1.28
     pinyinDictFileName: 'pinyin_simp.dict.yaml',    // 拼音词库文件名
+    uiZoom: null,                                   // UI 缩放系数：null=跟随屏幕自适应；number=用户手动设置值（菜单"视图"→"放大/缩小/重置"）
 }
 
 const SYNC_MAX_WORD_COUNT = 40000

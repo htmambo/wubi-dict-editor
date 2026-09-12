@@ -80,14 +80,25 @@ const APP_META = {
 let mainWindow // 主窗口
 let fileList = [] // 文件目录列表，用于移动词条
 
-// 计算 Linux 下的 CSS zoom factor
-// 优先级：WUBI_ZOOM_FACTOR env var > 基于主屏 scaleFactor 自适应
-// 经验系数 0.5：Linux Wayland 下 Electron dpr 经常少报，CSS zoom 补 0.5 倍系数让字号
-// 接近 OS 报告的视觉大小；1080p 低 DPI 时不补偿，避免无谓放大。
-function calcLinuxCssZoom() {
+// 当前生效的 zoom（受 config.uiZoom > env > scaleFactor 自适应三层控制）
+let currentZoom = 1.0
+
+// 决定当前应使用的 zoom 值
+// 优先级：config.uiZoom（用户手动设）> WUBI_ZOOM_FACTOR env > scaleFactor 自适应
+function getEffectiveZoom() {
+    try {
+        const cfg = readConfigFile()
+        if (cfg && typeof cfg.uiZoom === 'number' && cfg.uiZoom > 0) {
+            return cfg.uiZoom
+        }
+    } catch (_) { /* config 损坏时按无设置处理 */ }
+
+    // env 强制覆盖（最高系统级优先级）
     const envZf = parseFloat(process.env.WUBI_ZOOM_FACTOR)
     if (Number.isFinite(envZf) && envZf > 0) return envZf
 
+    // 基于主屏 scaleFactor 自适应（经验系数 0.5：Linux Wayland 下 Electron dpr 经常少报）
+    if (!screen || !screen.getPrimaryDisplay) return 1.0
     const scale = screen.getPrimaryDisplay().scaleFactor
     if (scale <= 1.25) return 1.0
     return Math.min(2.0, 1 + (scale - 1.25) * 0.5)
@@ -98,7 +109,8 @@ function calcLinuxCssZoom() {
 // initial=false 用 executeJavaScript 改 style.zoom（避免 insertCSS 重复叠加导致 zoom 翻倍）。
 function applyLinuxCssZoom(win, initial) {
     if (!win || win.isDestroyed()) return
-    const zf = calcLinuxCssZoom()
+    const zf = getEffectiveZoom()
+    currentZoom = zf
     if (initial) {
         win.webContents.insertCSS(
             `html, body { zoom: ${zf} !important; transform-origin: 0 0; }`,
@@ -109,7 +121,44 @@ function applyLinuxCssZoom(win, initial) {
             `document.documentElement.style.zoom = '${zf}';`
         ).catch(() => { /* 页面未就绪时静默忽略 */ })
     }
-    console.log(`[zoom] scaleFactor=${screen.getPrimaryDisplay().scaleFactor} → CSS zoom=${zf}${process.env.WUBI_ZOOM_FACTOR ? ' (env override)' : ''}`)
+    const scale = screen && screen.getPrimaryDisplay ? screen.getPrimaryDisplay().scaleFactor : 'N/A'
+    console.log(`[zoom] scaleFactor=${scale} → zoom=${zf}`)
+}
+
+// 用户从菜单/快捷键手动调 zoom（±0.1 步进，范围 [0.5, 3.0]）
+function adjustZoom(delta) {
+    const next = Math.round((currentZoom + delta) * 1000) / 1000
+    const clamped = Math.max(0.5, Math.min(3.0, next))
+    persistUiZoom(clamped)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(
+            `document.documentElement.style.zoom = '${clamped}';`
+        ).catch(() => {})
+    }
+    refreshAppMenu()
+    console.log(`[zoom] 手动 ${delta > 0 ? '放大' : '缩小'} → ${clamped}`)
+}
+
+// 把 config.uiZoom 还原为 null，让应用跟随 scaleFactor 自适应
+function resetZoom() {
+    persistUiZoom(null)
+    // 重置后立刻按自适应重算并应用
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        const zf = getEffectiveZoom()
+        mainWindow.webContents.executeJavaScript(
+            `document.documentElement.style.zoom = '${zf}';`
+        ).catch(() => {})
+    }
+    refreshAppMenu()
+    console.log(`[zoom] 重置为自适应 → ${currentZoom}`)
+}
+
+// 写 uiZoom 到 config（null 表示清除）
+function persistUiZoom(value) {
+    const cfg = { ...readConfigFile() }  // 浅拷贝，避免 mutate DEFAULT_CONFIG 常量
+    cfg.uiZoom = value
+    writeConfigFile(JSON.stringify(cfg, null, 2))
+    currentZoom = getEffectiveZoom()
 }
 
 function createMainWindow() {
@@ -143,14 +192,18 @@ function createMainWindow() {
     // Treeland 走 XWayland 时 setZoomFactor 不影响物理 buffer，所以用 CSS zoom 兜底；
     // 其他 Wayland/X11 桌面虽然 dpr 通常反映 OS 缩放，但 Linux 上 Electron dpr 经常
     // 少报，CSS zoom 补 0.5 倍系数能避免字号过小。WUBI_ZOOM_FACTOR 强制覆盖。
+    // 用户从"视图"菜单手动调过的 zoom 会被持久化到 config.uiZoom，多屏切换不再覆盖。
     if (process.platform === 'linux') {
         mainWindow.webContents.on('did-finish-load', () => {
             applyLinuxCssZoom(mainWindow, true)
         })
-        // 多屏拖动 / DPI 切换时实时调 zoom，无需重启
-        screen.on('display-metrics-changed', () => applyLinuxCssZoom(mainWindow, false))
-        screen.on('display-added', () => applyLinuxCssZoom(mainWindow, false))
-        screen.on('display-removed', () => applyLinuxCssZoom(mainWindow, false))
+        // 多屏拖动 / DPI 切换时实时调 zoom（仅在用户未手动设置时才重算）
+        const onDisplayChanged = () => {
+            if (!hasUserSetZoom()) applyLinuxCssZoom(mainWindow, false)
+        }
+        screen.on('display-metrics-changed', onDisplayChanged)
+        screen.on('display-added', onDisplayChanged)
+        screen.on('display-removed', onDisplayChanged)
     }
     mainWindow.on('closed', function () {
         mainWindow = null
@@ -871,9 +924,9 @@ function getLabelNameFromFileName(fileName) {
 }
 
 
-// 创建 menu
-function createMenu() {
-    let menuStructure = [
+// 构建 menu 模板（拆出函数方便 zoom 变化后 refreshAppMenu 重建）
+function buildMenuTemplate() {
+    return [
         {
             label: '配置',
             submenu: [
@@ -906,6 +959,32 @@ function createMenu() {
         {
             label: '编辑',
             role: 'editMenu'
+        },
+        {
+            label: '视图',
+            submenu: [
+                {
+                    label: '放大',
+                    accelerator: 'CommandOrControl+=',
+                    click() { adjustZoom(0.1) },
+                },
+                {
+                    label: '缩小',
+                    accelerator: 'CommandOrControl+-',
+                    click() { adjustZoom(-0.1) },
+                },
+                { type: 'separator' },
+                {
+                    // 只读 label，显示当前 zoom 值（自适应模式下追加 "自动" 后缀）
+                    label: `当前缩放: ${currentZoom.toFixed(3)}×${hasUserSetZoom() ? '' : '  (自动)'}`,
+                    enabled: false,
+                },
+                {
+                    label: '重置为自动缩放',
+                    accelerator: 'CommandOrControl+0',
+                    click() { resetZoom() },
+                },
+            ]
         },
         {
             label: '文件夹',
@@ -949,13 +1028,24 @@ function createMenu() {
             ]
         },
     ]
-    if (IS_IN_DEVELOP) {
-        /*        menuStructure.push(
+}
 
-                )*/
-    }
-    let menu = Menu.buildFromTemplate(menuStructure)
-    Menu.setApplicationMenu(menu)
+// 判断当前 zoom 是否用户手动设置（用于菜单 label 后缀）
+function hasUserSetZoom() {
+    try {
+        const cfg = readConfigFile()
+        return cfg && typeof cfg.uiZoom === 'number' && cfg.uiZoom > 0
+    } catch (_) { return false }
+}
+
+// 重建应用菜单（zoom 调整后调用，刷新"当前缩放"label）
+function refreshAppMenu() {
+    Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate()))
+}
+
+// 创建 menu
+function createMenu() {
+    Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate()))
 }
 
 // 初始化 macOS / Linux GTK 原生关于面板（Windows 上 setAboutPanelOptions 无可见效果）
