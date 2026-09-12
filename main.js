@@ -104,25 +104,41 @@ function getEffectiveZoom() {
     return Math.min(2.0, 1 + (scale - 1.25) * 0.5)
 }
 
-// 把 zoom 应用到窗口。
-// initial=true 用 insertCSS 注入（兼容 Treeland 下 setZoomFactor 不影响物理 buffer 的问题）；
-// initial=false 用 executeJavaScript 改 style.zoom（避免 insertCSS 重复叠加导致 zoom 翻倍）。
-function applyLinuxCssZoom(win, initial) {
+// 把 zoom 应用到窗口：双保险（Chromium 层 setZoomFactor + CSS 变量层）
+// 之前用 `style.zoom = X` 会被 CSS `zoom: X !important` 盖回去（CSS !important 优先级
+// 高于 inline style），改用 CSS 变量后，inline style 改的是变量值，CSS 解析时拿到新值。
+// setZoomFactor 是 Chromium 内部 zoom，native Wayland 下有效，XWayland/Treeland 下无效，
+// 但 CSS 变量兜底。
+function applyZoomToWin(win, zf, initial) {
     if (!win || win.isDestroyed()) return
-    const zf = getEffectiveZoom()
     currentZoom = zf
+
+    // 1) Chromium 内部 zoom（native Wayland / X11 下立即生效）
+    try {
+        win.webContents.setZoomFactor(zf)
+    } catch (e) {
+        console.log('[zoom] setZoomFactor 失败:', e.message)
+    }
+
+    // 2) CSS 变量层（覆盖应用自身可能设的 zoom 规则；XWayland/Treeland 唯一可用通道）
+    const css = `:root { --wubi-zoom: ${zf}; }
+                 html, body { zoom: var(--wubi-zoom, 1) !important; transform-origin: 0 0; }`
     if (initial) {
-        win.webContents.insertCSS(
-            `html, body { zoom: ${zf} !important; transform-origin: 0 0; }`,
-            { cssOrigin: 'user' }
-        )
+        win.webContents.insertCSS(css, { cssOrigin: 'user' })
     } else {
         win.webContents.executeJavaScript(
-            `document.documentElement.style.zoom = '${zf}';`
+            `document.documentElement.style.setProperty('--wubi-zoom', '${zf}');`
         ).catch(() => { /* 页面未就绪时静默忽略 */ })
     }
+
     const scale = screen && screen.getPrimaryDisplay ? screen.getPrimaryDisplay().scaleFactor : 'N/A'
-    console.log(`[zoom] scaleFactor=${scale} → zoom=${zf}`)
+    console.log(`[zoom] scaleFactor=${scale} → zoom=${zf} (${initial ? 'initial' : 'update'})`)
+}
+
+// 首次/display 变化时调：算 zoom + 应用 + 同步菜单
+function applyLinuxCssZoom(win, initial) {
+    if (!win || win.isDestroyed()) return
+    applyZoomToWin(win, getEffectiveZoom(), initial)
 }
 
 // 用户从菜单/快捷键手动调 zoom（±0.1 步进，范围 [0.5, 3.0]）
@@ -131,9 +147,7 @@ function adjustZoom(delta) {
     const clamped = Math.max(0.5, Math.min(3.0, next))
     persistUiZoom(clamped)
     if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript(
-            `document.documentElement.style.zoom = '${clamped}';`
-        ).catch(() => {})
+        applyZoomToWin(mainWindow, clamped, false)
     }
     refreshAppMenu()
     console.log(`[zoom] 手动 ${delta > 0 ? '放大' : '缩小'} → ${clamped}`)
@@ -142,12 +156,8 @@ function adjustZoom(delta) {
 // 把 config.uiZoom 还原为 null，让应用跟随 scaleFactor 自适应
 function resetZoom() {
     persistUiZoom(null)
-    // 重置后立刻按自适应重算并应用
     if (mainWindow && !mainWindow.isDestroyed()) {
-        const zf = getEffectiveZoom()
-        mainWindow.webContents.executeJavaScript(
-            `document.documentElement.style.zoom = '${zf}';`
-        ).catch(() => {})
+        applyZoomToWin(mainWindow, getEffectiveZoom(), false)
     }
     refreshAppMenu()
     console.log(`[zoom] 重置为自适应 → ${currentZoom}`)
