@@ -976,12 +976,12 @@ function buildMenuTemplate() {
                 {
                     label: '放大',
                     accelerator: 'CommandOrControl+=',
-                    click() { adjustZoom(0.1) },
+                    click() { adjustZoom(0.05) },
                 },
                 {
                     label: '缩小',
                     accelerator: 'CommandOrControl+-',
-                    click() { adjustZoom(-0.1) },
+                    click() { adjustZoom(-0.05) },
                 },
                 { type: 'separator' },
                 {
