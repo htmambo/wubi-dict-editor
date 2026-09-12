@@ -817,6 +817,13 @@ function createConfigWindow() {
 // config 文件保存在 用户文件夹下 / CONFIG_FILE_PATH/CONFIG_FILE_NAME 文件中
 function writeConfigFile(contentString) {
     let configPath = getAppConfigDir()
+    // 确保配置目录存在：zoom 持久化等场景可能在用户从未打开 ConfigWindow 时触发，
+    // 此时 ~/WubiDictEditor 目录还不存在，fs.writeFile 不会自动创建父目录，写入会失败。
+    try {
+        fs.mkdirSync(configPath, { recursive: true })
+    } catch (e) {
+        console.log('[config] 创建目录失败:', e.message)
+    }
     fs.writeFile(
         path.join(configPath, CONFIG_FILE_NAME),
         contentString, {encoding: 'utf-8'},
