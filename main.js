@@ -80,6 +80,38 @@ const APP_META = {
 let mainWindow // 主窗口
 let fileList = [] // 文件目录列表，用于移动词条
 
+// 计算 Linux 下的 CSS zoom factor
+// 优先级：WUBI_ZOOM_FACTOR env var > 基于主屏 scaleFactor 自适应
+// 经验系数 0.5：Linux Wayland 下 Electron dpr 经常少报，CSS zoom 补 0.5 倍系数让字号
+// 接近 OS 报告的视觉大小；1080p 低 DPI 时不补偿，避免无谓放大。
+function calcLinuxCssZoom() {
+    const envZf = parseFloat(process.env.WUBI_ZOOM_FACTOR)
+    if (Number.isFinite(envZf) && envZf > 0) return envZf
+
+    const scale = screen.getPrimaryDisplay().scaleFactor
+    if (scale <= 1.25) return 1.0
+    return Math.min(2.0, 1 + (scale - 1.25) * 0.5)
+}
+
+// 把 zoom 应用到窗口。
+// initial=true 用 insertCSS 注入（兼容 Treeland 下 setZoomFactor 不影响物理 buffer 的问题）；
+// initial=false 用 executeJavaScript 改 style.zoom（避免 insertCSS 重复叠加导致 zoom 翻倍）。
+function applyLinuxCssZoom(win, initial) {
+    if (!win || win.isDestroyed()) return
+    const zf = calcLinuxCssZoom()
+    if (initial) {
+        win.webContents.insertCSS(
+            `html, body { zoom: ${zf} !important; transform-origin: 0 0; }`,
+            { cssOrigin: 'user' }
+        )
+    } else {
+        win.webContents.executeJavaScript(
+            `document.documentElement.style.zoom = '${zf}';`
+        ).catch(() => { /* 页面未就绪时静默忽略 */ })
+    }
+    console.log(`[zoom] scaleFactor=${screen.getPrimaryDisplay().scaleFactor} → CSS zoom=${zf}${process.env.WUBI_ZOOM_FACTOR ? ' (env override)' : ''}`)
+}
+
 function createMainWindow() {
     let width = IS_IN_DEVELOP ? 1800 : 1250
     let height = 800
@@ -107,21 +139,18 @@ function createMainWindow() {
         })
     )
 
-    // Treeland 下 XWayland 报的是 OS 缩放后的 logical 尺寸（4K 屏 + 133%
-    // OS 缩放时 size=2880×1800），Chromium 内部按 dpr=1 渲染，结果窗口物理只占
-    // 实际屏 43%。诊断发现 BrowserWindow.setSize 在 XWayland 下不影响 layout viewport；
-    // setZoomFactor 被 Electron 接受但不影响物理 buffer 渲染尺寸。
-    // 最稳的修复：CSS 层 zoom，did-finish-load 后用 insertCSS 注入。
-    // 默认 1.2（Deepin 4K 屏实测合适的 CSS zoom 值），可用 WUBI_ZOOM_FACTOR 覆盖。
-    // 其他 Linux 走 native Wayland，dpr 会自动反映 OS 缩放，不需要 CSS zoom 兜底。
-    if (isTrelanD) {
+    // Linux 下根据主屏 scaleFactor 自适应注入 CSS zoom（首次 + 多屏切换时实时跟随）。
+    // Treeland 走 XWayland 时 setZoomFactor 不影响物理 buffer，所以用 CSS zoom 兜底；
+    // 其他 Wayland/X11 桌面虽然 dpr 通常反映 OS 缩放，但 Linux 上 Electron dpr 经常
+    // 少报，CSS zoom 补 0.5 倍系数能避免字号过小。WUBI_ZOOM_FACTOR 强制覆盖。
+    if (process.platform === 'linux') {
         mainWindow.webContents.on('did-finish-load', () => {
-            const zf = parseFloat(process.env.WUBI_ZOOM_FACTOR) || 1.2
-            mainWindow.webContents.insertCSS(
-                `html, body { zoom: ${zf} !important; transform-origin: 0 0; }`,
-                { cssOrigin: 'user' }
-            )
+            applyLinuxCssZoom(mainWindow, true)
         })
+        // 多屏拖动 / DPI 切换时实时调 zoom，无需重启
+        screen.on('display-metrics-changed', () => applyLinuxCssZoom(mainWindow, false))
+        screen.on('display-added', () => applyLinuxCssZoom(mainWindow, false))
+        screen.on('display-removed', () => applyLinuxCssZoom(mainWindow, false))
     }
     mainWindow.on('closed', function () {
         mainWindow = null
