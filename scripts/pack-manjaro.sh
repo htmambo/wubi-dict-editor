@@ -74,12 +74,17 @@ BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "${BUILD_DIR}"' EXIT
 
 # 1.5 生成多尺寸 PNG 图标到 BUILD_DIR（PKGBUILD 的 source 引用这些文件）
-# 仓库源图标仅含 .ico / .icns，Linux 桌面环境只认 PNG，
-# 因此这里用 ImageMagick 从 .ico 提取并生成常用尺寸。
-# 不解包/重打包 app.asar（破坏原有 unpack 配置的风险），图标只放 BUILD_DIR 供 PKGBUILD 装入 /usr/share/icons。
-ICO_SRC="${ROOT}/assets/img/appIcon/appIcon.ico"
-ICON_SIZES=(16 32 48 64 128 256)
-echo ">>> 阶段 1.5：从 appIcon.ico 生成多尺寸 PNG 到 BUILD_DIR"
+# 仓库里的 appIcon.ico 最大只到 256x256（实测：[3] PNG 256x256），
+# 4K 屏应用启动器需要 ≥ 512 才有清晰显示。这里用仓库现有的真 512x512 PNG
+# （appIcon-512.png，62989 字节）作源，做降采样生成各尺寸。
+# 不用 .ico 作源可以避免「-resize 128x128 不生效，产物仍是 256x256」的坑。
+ICO_SRC="${ROOT}/assets/img/appIcon/appIcon-512.png"
+ICON_SIZES=(16 32 48 64 128 256 512)
+echo ">>> 阶段 1.5：从 appIcon-512.png 降采样生成多尺寸 PNG 到 BUILD_DIR"
+if [[ ! -s "${ICO_SRC}" ]]; then
+  echo "❌ 未找到源 PNG：${ICO_SRC}"
+  exit 1
+fi
 if command -v magick >/dev/null 2>&1; then
   MAGICK_CMD=(magick)
 elif command -v convert >/dev/null 2>&1; then
@@ -90,13 +95,21 @@ else
   exit 1
 fi
 for size in "${ICON_SIZES[@]}"; do
-  "${MAGICK_CMD[@]}" "${ICO_SRC}[0]" -resize "${size}x${size}" -alpha on -background none \
+  "${MAGICK_CMD[@]}" "${ICO_SRC}" -resize "${size}x${size}" -alpha on -background none \
       "${BUILD_DIR}/appIcon-${size}.png"
-  [[ -s "${BUILD_DIR}/appIcon-${size}.png" ]] || { echo "❌ PNG ${size}x${size} 生成失败"; exit 1; }
+  # 校验实际像素尺寸确实等于目标（防御 ImageMagick noop 之类的边角 case）
+  actual_size=$("${MAGICK_CMD[@]}" identify -format '%w' "${BUILD_DIR}/appIcon-${size}.png" 2>/dev/null)
+  if [[ "${actual_size}" != "${size}" ]]; then
+    echo "❌ PNG ${size}x${size} 尺寸异常（实际 ${actual_size}x${actual_size}）"
+    exit 1
+  fi
 done
 
 # 动态生成 PKGBUILD（pkgver 取自 package.json）
 sed "s/^pkgver=.*/pkgver=${PKG_VER}/" scripts/PKGBUILD > "${BUILD_DIR}/PKGBUILD"
+
+# 复制 pacman install/upgrade/remove hook（PKGBUILD 用 install= 引用）
+cp scripts/wubi-dict-editor.install "${BUILD_DIR}/wubi-dict-editor.install"
 
 # PKGBUILD 的 source 指向 WubiDictEditor-linux-x64.tar.gz，
 # 必须先把 unpacked 应用打包成同名 tar.gz 放到 BUILD_DIR 根目录

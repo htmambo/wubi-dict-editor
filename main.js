@@ -5,8 +5,17 @@ if (require('electron-squirrel-startup')) {
 
 const {app, globalShortcut, BrowserWindow, Menu, ipcMain, shell, dialog, net, Notification, screen} = require('electron')
 
-// 在 Treeland（Deepin 自研 Wayland compositor）下走 native Wayland Ozone 时
-// Electron 28 有两个互相纠缠的问题：
+// 是否在 Treeland（Deepin 25 自研 Wayland compositor）下运行。
+// Treeland 下 Electron 28 的 native Wayland Ozone 有 dpr 错乱 + GPU FATAL，
+// 需走 XWayland 兜底；其他 Linux compositor（GNOME/KDE/Hyprland/Sway）走
+// native Wayland 更佳，不要强制 X11。
+const isTrelanD = process.platform === 'linux' && [
+    process.env.XDG_CURRENT_DESKTOP,
+    process.env.XDG_SESSION_DESKTOP,
+    process.env.DESKTOP_SESSION,
+].filter(Boolean).join(' ').toLowerCase().includes('treeland')
+
+// 在 Treeland 下走 native Wayland Ozone 时 Electron 28 有两个互相纠缠的问题：
 //   1) 窗口内容被 2× 放大：Chromium 内部 devicePixelRatio 与 Electron 的
 //      screen.scaleFactor 报的值不一致（例如显示 2880×1800 + scaleFactor=1，
 //      但实际渲染按 dpr=2 进行，UI 整体大一倍）。
@@ -14,8 +23,11 @@ const {app, globalShortcut, BrowserWindow, Menu, ipcMain, shell, dialog, net, No
 // 最稳的解法是直接走 XWayland（Ozone 的 x11 platform）——Deepin 25 默认装了
 // XWayland，所有 GUI 应用都 fallback 到它；X11 协议下 Treeland 按 96 DPI 给
 // 客户端报 scale=1，与 force-device-scale-factor=1 一致，渲染正常。
+// 其他 Linux compositor（GNOME/KDE/Hyprland/Sway）native Wayland 都已稳定，
+// 强制 XWayland 反而会让 OS HiDPI 缩放失效、UI 看起来过小。
+// 因此只在 Treeland 上兜底走 X11，其他 Linux 让 Electron 自动选最合适的 Ozone platform。
 // 必须在 app.on('ready') 之前调用，因此紧跟 require('electron')。
-if (process.platform === 'linux') {
+if (isTrelanD) {
     app.commandLine.appendSwitch('ozone-platform', 'x11')
     app.commandLine.appendSwitch('force-device-scale-factor', '1')
 }
@@ -95,13 +107,14 @@ function createMainWindow() {
         })
     )
 
-    // Treeland/XWayland 下 XWayland 报的是 OS 缩放后的 logical 尺寸（4K 屏 + 133%
+    // Treeland 下 XWayland 报的是 OS 缩放后的 logical 尺寸（4K 屏 + 133%
     // OS 缩放时 size=2880×1800），Chromium 内部按 dpr=1 渲染，结果窗口物理只占
     // 实际屏 43%。诊断发现 BrowserWindow.setSize 在 XWayland 下不影响 layout viewport；
     // setZoomFactor 被 Electron 接受但不影响物理 buffer 渲染尺寸。
     // 最稳的修复：CSS 层 zoom，did-finish-load 后用 insertCSS 注入。
     // 默认 1.2（Deepin 4K 屏实测合适的 CSS zoom 值），可用 WUBI_ZOOM_FACTOR 覆盖。
-    if (process.platform === 'linux') {
+    // 其他 Linux 走 native Wayland，dpr 会自动反映 OS 缩放，不需要 CSS zoom 兜底。
+    if (isTrelanD) {
         mainWindow.webContents.on('did-finish-load', () => {
             const zf = parseFloat(process.env.WUBI_ZOOM_FACTOR) || 1.2
             mainWindow.webContents.insertCSS(

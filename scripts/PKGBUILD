@@ -11,6 +11,9 @@ optdepends=('libappindicator-gtk3: 系统托盘支持')
 provides=('WubiDictEditor')
 conflicts=('wubi-dict-editor' 'WubiDictEditor')
 
+# 安装/卸载时调用的 hook（强制刷新 desktop + icon 缓存）
+install=wubi-dict-editor.install
+
 # 解包后的应用目录（由 pack-manjaro.sh 在调用 makepkg 前准备）
 # 图标 PNG 由 pack-manjaro.sh 生成到本目录，PKGBUILD 直接读取
 source=("WubiDictEditor-linux-x64.tar.gz"
@@ -19,9 +22,12 @@ source=("WubiDictEditor-linux-x64.tar.gz"
         "appIcon-48.png"
         "appIcon-64.png"
         "appIcon-128.png"
-        "appIcon-256.png")
+        "appIcon-256.png"
+        "appIcon-512.png"
+        "wubi-dict-editor.install")
 sha256sums=('SKIP'
-            'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+            'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
+            'SKIP')
 
 # 阻止 makepkg 自动 strip Electron 二进制（strip 后 electron 启动报错）
 options=('!strip')
@@ -37,18 +43,27 @@ package() {
     # 在 .desktop 中显式使用 --no-sandbox 绕过（单用户桌面应用可接受）。
     rm -f "${pkgdir}/opt/${pkgname}/chrome-sandbox"
 
-    # 复制图标
+    # 安装 .desktop 启动器（zh_CN locale 下显示"五笔码表助手"，归类到"办公"）
     install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/WubiDictEditor.desktop" <<EOF
 [Desktop Entry]
 Name=五笔码表助手
+Name[zh_CN]=五笔码表助手
+Name[zh]=五笔码表助手
 Name[en]=Wubi Dict Editor
+GenericName=五笔码表编辑器
+GenericName[zh_CN]=五笔码表编辑器
+GenericName[zh]=五笔码表编辑器
+GenericName[en]=Wubi Dictionary Editor
 Comment=五笔码表管理工具
+Comment[zh_CN]=五笔码表管理工具
+Comment[zh]=五笔码表管理工具
 Comment[en]=Wubi dictionary management tool
 Exec=/opt/${pkgname}/WubiDictEditor --no-sandbox %U
 Terminal=false
 Type=Application
 Icon=WubiDictEditor
-Categories=Utility;TextEditor;
+Categories=Office;TextEditor;
+Keywords=五笔;码表;输入法;汉字;wubi;dict;editor;
 StartupNotify=true
 StartupWMClass=WubiDictEditor
 EOF
@@ -56,7 +71,7 @@ EOF
     # 安装多尺寸 PNG 图标（pack-manjaro.sh 在 stage 1.5 已生成到 ${srcdir}）
     # 缺失则警告（图标不会出现在桌面环境）
     local installed_icon=0
-    for size in 16 32 48 64 128 256; do
+    for size in 16 32 48 64 128 256 512; do
         local icon_src="${srcdir}/appIcon-${size}.png"
         if [[ -s "${icon_src}" ]]; then
             install -Dm644 "${icon_src}" \

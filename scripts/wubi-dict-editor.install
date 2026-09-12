@@ -1,0 +1,41 @@
+# pacman 安装/卸载 hook
+# 在 PKGBUILD 中通过 install=wubi-dict-editor.install 引用
+#
+# 触发场景：
+#   - 初次安装 (post_install)
+#   - 升级 (pre_upgrade / post_upgrade)
+#   - 卸载 (post_remove)
+#
+# 注意：Alpm 自身在 install/upgrade/remove 时已会触发
+#   /usr/share/libalpm/hooks/*.hook 里的 update-desktop-database 和
+#   gtk-update-icon-cache hook。本脚本是双保险，且在卸载时
+#   这些 hook 不会自动反向清理 cache，所以这里必须做。
+
+# 错误即中断，避免安装/卸载半成品后用户看不到应用
+set -e
+
+_update_caches() {
+    # 桌面数据库：让 .desktop 文件被 App launcher 立即识别
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q /usr/share/applications || true
+    fi
+    # 图标缓存：让图标立刻出现在 launcher / 文件管理器
+    for theme_dir in /usr/share/icons/*; do
+        [ -d "$theme_dir" ] || continue
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f "$theme_dir" 2>/dev/null || true
+        fi
+    done
+}
+
+post_install() {
+    _update_caches
+}
+
+post_upgrade() {
+    _update_caches
+}
+
+post_remove() {
+    _update_caches
+}
